@@ -120,6 +120,29 @@ function varName(v: ParamValue): string | null {
 	}
 }
 
+/** Pure variable-assignment actions, rendered as `<target var> = <value>` — class → [target, value]. */
+const SETTERS: Record<string, [string, string]> = {
+	SetBoolValue: ['boolVariable', 'boolValue'],
+	SetFloatValue: ['floatVariable', 'floatValue'],
+	SetIntValue: ['intVariable', 'intValue'],
+	SetStringValue: ['stringVariable', 'stringValue'],
+	SetVector2Value: ['vector2Variable', 'vector2Value'],
+	SetVector3Value: ['vector3Variable', 'vector3Value']
+};
+
+/**
+ * A pure setter action's target (a variable) and value params — for rendering `var "x" = value`.
+ * `undefined` if the action isn't a known setter or its target isn't actually a variable.
+ */
+export function setter(a: Action): { target: Param; value: Param } | undefined {
+	const names = SETTERS[short(a.class)];
+	if (!names) return undefined;
+	const target = a.params.find((p) => p.name === names[0]);
+	const value = a.params.find((p) => p.name === names[1]);
+	if (target && value && varName(target.value) !== null) return { target, value };
+	return undefined;
+}
+
 /**
  * The single output parameter an action writes into a variable, if any — PlayMaker's `store*` naming
  * convention. Returns `undefined` for actions with zero or multiple such outputs (e.g. raycasts that

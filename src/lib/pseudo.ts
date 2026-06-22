@@ -1,6 +1,6 @@
 import type { Action, FsmModel, Param } from './model';
 import { fmtValue, short, valueKind } from './fmt';
-import { isHiddenParam, storeParam } from './actions';
+import { isHiddenParam, setter, storeParam } from './actions';
 
 /** compact one-line arg list for an action: `name=value, …` (unnamed params show just the value) */
 export function args(params: Param[]): string {
@@ -33,6 +33,23 @@ export interface Token {
  */
 export function actionTokens(a: Action): Token[] {
 	const toks: Token[] = [];
+
+	// pure setter actions collapse to `var "x" = value` — but only when nothing else is visible
+	// (e.g. an everyFrame=true would otherwise be dropped), else fall through to the normal form.
+	const set = setter(a);
+	if (set) {
+		const others = a.params.filter(
+			(p) => p !== set.target && p !== set.value && !isHiddenParam(a, p)
+		);
+		if (others.length === 0) {
+			return [
+				{ text: fmtValue(set.target.value), cls: 'var' },
+				{ text: ' = ' },
+				{ text: fmtValue(set.value.value), cls: valueKind(set.value.value) || undefined }
+			];
+		}
+	}
+
 	const store = storeParam(a);
 	const rest = a.params.filter((p) => p !== store && !isHiddenParam(a, p));
 	if (store) toks.push({ text: fmtValue(store.value), cls: 'var' }, { text: ' = ' });
