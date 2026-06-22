@@ -71,6 +71,22 @@
 	const namedScenes = $derived(scenes.filter((s) => s.named));
 	const otherScenes = $derived(scenes.filter((s) => !s.named));
 
+	// group scene names sharing a prefix before the first `_` (Abyss_01, Abyss_02 -> Abyss/01, /02);
+	// a prefix with a single scene stays a plain top-level entry. ordered by first file in each group.
+	type SceneGroup = { prefix: string; file0: string; items: SceneRow[] };
+	const namedGroups = $derived.by(() => {
+		const by = new Map<string, SceneRow[]>();
+		for (const s of namedScenes) {
+			const prefix = s.name.split('_')[0];
+			(by.get(prefix) ?? by.set(prefix, []).get(prefix)!).push(s);
+		}
+		return [...by.entries()]
+			.map(([prefix, items]): SceneGroup => ({ prefix, items, file0: items[0].file }))
+			.sort((a, b) => coll.compare(a.file0, b.file0));
+	});
+	const suffix = (g: SceneGroup, s: SceneRow) =>
+		s.name.startsWith(`${g.prefix}_`) ? s.name.slice(g.prefix.length + 1) : s.name;
+
 	type FsmLeaf = { name: string; hash: string };
 	type TreeNode = { name: string; children: Map<string, TreeNode>; fsms: FsmLeaf[] };
 
@@ -173,14 +189,31 @@
 	<p class="msg err">{String(indexQuery.error)}</p>
 {:else if scene === null}
 	<div class="count dim">{namedScenes.length} scenes</div>
-	<ul class="grid">
-		{#each namedScenes as s (s.file)}
-			<li>
-				<a class="rowlink" href={hrefFor({ scene: s.file })} title={s.file}>{s.name}</a>
-				<span class="dim badge">{s.count}</span>
-			</li>
+	<div class="scenes">
+		{#each namedGroups as g (g.prefix)}
+			{#if g.items.length > 1}
+				<div class="grp">
+					<div class="grphead">{g.prefix} <span class="dim badge">{g.items.length}</span></div>
+					<ul class="sublist">
+						{#each g.items as s (s.file)}
+							<li>
+								<a class="rowlink" href={hrefFor({ scene: s.file })} title={s.file}
+									>{suffix(g, s)}</a
+								>
+								<span class="dim badge">{s.count}</span>
+							</li>
+						{/each}
+					</ul>
+				</div>
+			{:else}
+				{@const s = g.items[0]}
+				<div class="grp">
+					<a class="rowlink" href={hrefFor({ scene: s.file })} title={s.file}>{s.name}</a>
+					<span class="dim badge">{s.count}</span>
+				</div>
+			{/if}
 		{/each}
-	</ul>
+	</div>
 	{#if otherScenes.length}
 		<div class="count dim section">{otherScenes.length} other files</div>
 		<ul class="grid">
@@ -282,6 +315,39 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 		gap: 0.1rem 1.5rem;
+	}
+	.scenes {
+		padding: 0.4rem 1.25rem 2rem;
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+		align-items: start;
+		gap: 0.6rem 1.5rem;
+	}
+	.grp {
+		display: flex;
+		align-items: baseline;
+		gap: 0.4rem;
+		min-width: 0;
+	}
+	.grphead {
+		font-weight: 600;
+		margin-bottom: 0.15rem;
+	}
+	.grp:has(.sublist) {
+		display: block;
+	}
+	.sublist {
+		list-style: none;
+		margin: 0;
+		padding-left: 0.8rem;
+		border-left: 1px solid #2a2a2a;
+	}
+	.sublist li {
+		display: flex;
+		align-items: baseline;
+		gap: 0.4rem;
+		padding: 0.05rem 0;
+		min-width: 0;
 	}
 	.grid li {
 		display: flex;
