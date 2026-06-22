@@ -55,6 +55,8 @@ export function isHiddenParam(a: Action, p: Param): boolean {
 	// Empty strings only via a per-action whitelist (a blank string is meaningful for some actions).
 	if (isEmptyString(p.value) && HIDDEN_EMPTY_STRINGS.has(`${short(a.class)}.${p.name}`))
 		return true;
+	// `FsmOwnerDefault` set to UseOwner (`Self`) is the implicit target — only a specified object is news.
+	if (p.value.type === 'Owner' && p.value.value === 'SelfOwner') return true;
 	return false;
 }
 

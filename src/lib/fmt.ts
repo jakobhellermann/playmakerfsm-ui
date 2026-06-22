@@ -31,7 +31,7 @@ export function fmtObjectRef(r: ObjectRef): string {
 }
 
 export function fmtGoRef(r: GoRef): string {
-	if (r === 'SelfOwner') return 'Owner (Self)';
+	if (r === 'SelfOwner') return 'Self';
 	if ('Var' in r) return `var ${q(r.Var)}`;
 	return fmtObjectRef(r.Object);
 }
