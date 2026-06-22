@@ -33,33 +33,48 @@
 
 	const ANY = '★ any state';
 
-	const CHAR = 7.3;
-	const ROW_H = 20;
-	const PAD_Y = 8;
+	const CHAR = 6.6;
+	const HEADER = 24; // state-name header height
+	const ROW = 16; // per-transition row height
+	const PAD = 12;
+	const txt = (s: string) => s.length * CHAR;
+	const ROW_H = 20; // chain state row height
+	const PAD_Y = 8; // chain box vertical padding
 
 	// a state inside a chain node: its name + the event that transitions to the next state (empty on last)
 	type ChainState = { name: string; event: string };
 
+	// ty = label y inside the box; (px,py) = where the edge leaves (right edge per row, or bottom-centre
+	// when the state has a single out-transition so it drops straight down)
+	type Row = { event: string; to: string; ty: number; px: number; py: number; down: boolean };
+
 	type Node = {
 		id: string;
-		label: string;
 		x: number;
 		y: number;
 		w: number;
 		h: number;
 		start: boolean;
 		any: boolean;
+		rows: Row[];
 		/** present when this node is a collapsed linear chain */
 		chain?: ChainState[];
 	};
 	type Edge = {
-		points: { x: number; y: number }[];
-		label: string;
-		global: boolean;
 		from: string;
 		to: string;
-		lx: number;
-		ly: number;
+		global: boolean;
+		// port-based state transitions:
+		down?: boolean;
+		sx?: number;
+		sy?: number;
+		tx?: number;
+		ty?: number;
+		// global transition arrows (per-target):
+		points?: { x: number; y: number }[];
+		label?: string;
+		lx?: number;
+		ly?: number;
 	};
 
 	const layout = $derived.by(() => {
@@ -113,68 +128,106 @@
 		const groupOf = new Map<string, number>();
 		groups.forEach((grp, i) => grp.states.forEach((s) => groupOf.set(s, i)));
 
-		// ── dagre layout on groups (compact) + multigraph edge routing ──
-		const g = new dagre.graphlib.Graph({ multigraph: true });
-		g.setGraph({ rankdir: 'TB', nodesep: 28, ranksep: 46, marginx: 16, marginy: 16 });
-		g.setDefaultEdgeLabel(() => ({}));
-		const width = (s: string) => Math.max(54, s.length * CHAR + 22);
-		groups.forEach((grp, i) => {
-			const w = Math.max(54, ...grp.states.map((s) => s.length * CHAR + 22));
-			const h = grp.states.length === 1 ? 30 : grp.states.length * ROW_H + PAD_Y * 2;
-			g.setNode(String(i), { width: w, height: h });
+		// transitions of a state that leave its group (visible ports); intra-chain transitions are hidden
+		const transOf = (id: string) => {
+			const raw =
+				id === ANY
+					? model.global_transitions
+					: (model.states.find((s) => s.name === id)?.transitions ?? []);
+			return raw.filter((t) => groupOf.get(id) !== groupOf.get(t.to_state));
+		};
+
+		// ── dagre layout on groups (compact) — edges only drive ordering ──
+		const sizeOf = (label: string, trans: { event: string }[], chainLen: number) => ({
+			width: Math.max(txt(label), ...trans.map((t) => txt(t.event) + 16), 40) + PAD * 2,
+			height:
+				chainLen > 1
+					? chainLen * ROW_H + PAD_Y * 2
+					: HEADER + trans.length * ROW + (trans.length ? 6 : 0)
 		});
-		const addEdge = (from: string, event: string, to: string, global: boolean) => {
+		const g = new dagre.graphlib.Graph();
+		g.setGraph({ rankdir: 'TB', nodesep: 34, ranksep: 64, marginx: 16, marginy: 16 });
+		g.setDefaultEdgeLabel(() => ({}));
+		groups.forEach((grp, i) => {
+			const label = grp.states[0];
+			const trans = transOf(label);
+			g.setNode(String(i), sizeOf(label, trans, grp.states.length));
+		});
+		const link = (from: string, to: string) => {
 			const fg = groupOf.get(from);
 			const tg = groupOf.get(to);
-			if (fg == null || tg == null || fg === tg) return;
-			g.setEdge(String(fg), String(tg), { label: event, global }, `${from}|${event}|${to}`);
+			if (fg != null && tg != null && fg !== tg) g.setEdge(String(fg), String(tg));
 		};
-		for (const s of model.states)
-			for (const t of s.transitions) addEdge(s.name, t.event, t.to_state, false);
-
+		for (const s of model.states) for (const t of s.transitions) link(s.name, t.to_state);
 		dagre.layout(g);
 
 		const nodes: Node[] = groups.map((grp, i) => {
 			const n = g.node(String(i));
-			const x = n.x - n.width / 2;
-			const y = n.y - n.height / 2;
+			const left = n.x - n.width / 2;
+			const top = n.y - n.height / 2;
+			const label = grp.states[0];
+			const trans = transOf(label);
+			const single = trans.length === 1;
+			const chain = grp.states.length > 1;
+			const rows: Row[] = trans.map((t, i) => {
+				const ty = chain ? top + PAD_Y + i * ROW + ROW / 2 : top + HEADER + i * ROW + ROW / 2;
+				// single out-edge leaves straight down from the bottom; multi-edge ports get a side below
+				return {
+					event: t.event,
+					to: t.to_state,
+					ty,
+					px: left + n.width / 2,
+					py: top + n.height,
+					down: single
+				};
+			});
 			return {
-				id: grp.states[0],
-				label: grp.states[0],
-				x,
-				y,
+				id: label,
+				x: left,
+				y: top,
 				w: n.width,
 				h: n.height,
 				start: grp.states[0] === model.start_state,
 				any: false,
-				chain:
-					grp.states.length > 1
-						? grp.states.map((s, j) => ({
-								name: s,
-								event: j < grp.events.length ? grp.events[j] : ''
-							}))
-						: undefined
+				rows,
+				chain: chain
+					? grp.states.map((s, j) => ({
+							name: s,
+							event: j < grp.events.length ? grp.events[j] : ''
+						}))
+					: undefined
 			};
 		});
+		const byId = new Map(nodes.map((n) => [n.id, n]));
 
-		const edges: Edge[] = g.edges().map((e) => {
-			const d = g.edge(e) as { points: { x: number; y: number }[]; label: string; global: boolean };
-			const mid = d.points[Math.floor(d.points.length / 2)] ?? { x: 0, y: 0 };
-			const fg = Number(e.v);
-			const tg = Number(e.w);
-			return {
-				points: d.points,
-				label: d.label,
-				global: d.global,
-				from: groups[fg].states[0],
-				to: groups[tg].states[0],
-				lx: mid.x,
-				ly: mid.y
-			};
-		});
+		const edges: Edge[] = [];
+		for (const n of nodes)
+			for (const r of n.rows) {
+				// resolve target: first state of the target's group
+				const tg = groupOf.get(r.to);
+				if (tg == null) continue;
+				const target = nodes[tg];
+				if (!target) continue;
+				const tgtCx = target.x + target.w / 2;
+				if (!r.down) {
+					// leave from the side (at the row's y) that's nearer the target
+					const right = tgtCx >= n.x + n.w / 2;
+					r.px = right ? n.x + n.w : n.x;
+					r.py = r.ty;
+				}
+				edges.push({
+					from: n.id,
+					to: target.id,
+					global: n.any,
+					down: r.down,
+					sx: r.px,
+					sy: r.py,
+					tx: tgtCx,
+					ty: target.y
+				});
+			}
 
 		// global transitions: short incoming arrows above each target, spread horizontally when multiple
-		const nodeById = new Map(nodes.map((n) => [n.id, n]));
 		const globalsByTarget = new Map<string, { event: string }[]>();
 		for (const t of model.global_transitions) {
 			(
@@ -182,7 +235,6 @@
 			).push({ event: t.event });
 		}
 		for (const [targetName, gtrans] of globalsByTarget) {
-			// find the node whose group contains this target state
 			const targetGroup = groupOf.get(targetName);
 			if (targetGroup == null) continue;
 			const target = nodes[targetGroup];
@@ -190,7 +242,7 @@
 			const n = gtrans.length;
 			gtrans.forEach((gt, j) => {
 				const cx = target.x + (target.w * (j + 1)) / (n + 1);
-				const yOff = 28 + (n - 1 - j) * 22; // stagger: first global highest, last lowest
+				const yOff = 28 + (n - 1 - j) * 22;
 				edges.push({
 					points: [
 						{ x: cx, y: target.y - yOff },
@@ -206,6 +258,7 @@
 			});
 		}
 
+		// for hot-detection: which group states are in
 		const gl = g.graph();
 		const edgeGroups: [Set<string>, Set<string>][] = edges.map((e) => {
 			const fg =
@@ -215,10 +268,20 @@
 			const tg = new Set(groups.find((grp) => grp.states[0] === e.to)?.states ?? []);
 			return [fg, tg];
 		});
+
 		return { nodes, edges, edgeGroups, width: gl.width ?? 100, height: gl.height ?? 100 };
 	});
 
 	const line = (pts: { x: number; y: number }[]) => pts.map((p) => `${p.x},${p.y}`).join(' ');
+
+	// cubic curve to the target's top-centre: straight down for a lone out-edge, else leaving the side
+	// (left or right) toward the target; global arrows are 2-point polylines rendered separately
+	const edgePath = (e: Edge) => {
+		if (e.down)
+			return `M ${e.sx!} ${e.sy!} C ${e.sx!} ${e.sy! + 40}, ${e.tx!} ${e.ty! - 40}, ${e.tx!} ${e.ty!}`;
+		const dx = e.tx! < e.sx! ? -50 : 50;
+		return `M ${e.sx!} ${e.sy!} C ${e.sx! + dx} ${e.sy!}, ${e.tx!} ${e.ty! - 50}, ${e.tx!} ${e.ty!}`;
+	};
 
 	// pan/zoom: an SVG <g> transform driven by mouse drag (pan) and wheel (zoom-to-cursor).
 	// `view` null = follow the fit-to-canvas transform; any interaction pins it to concrete values.
@@ -372,22 +435,33 @@
 					{@const hot =
 						selected != null &&
 						(layout.edgeGroups[i][0].has(selected) || layout.edgeGroups[i][1].has(selected))}
-					<polyline
-						points={line(e.points)}
-						fill="none"
-						stroke={hot ? 'var(--accent)' : e.global ? 'var(--var)' : '#888'}
-						stroke-width={hot ? 2.2 : 1.3}
-						marker-end="url(#{hot ? 'arrowsel' : e.global ? 'arrowg' : 'arrow'})"
-						opacity={selected == null ? 0.8 : hot ? 1 : 0.18}
-					/>
-					<text
-						x={e.lx}
-						y={e.ly - 3}
-						class="elabel"
-						class:hot
-						text-anchor="middle"
-						opacity={selected == null || hot ? 1 : 0.2}>{e.label}</text
-					>
+					{#if e.points}
+						<!-- global transition: short polyline with label -->
+						<polyline
+							points={line(e.points)}
+							fill="none"
+							stroke={hot ? 'var(--accent)' : 'var(--var)'}
+							stroke-width={hot ? 2 : 1.2}
+							marker-end="url(#{hot ? 'arrowsel' : 'arrowg'})"
+							opacity={selected == null ? 0.7 : hot ? 1 : 0.15}
+						/>
+						<text
+							x={e.lx}
+							y={e.ly}
+							class="elabel"
+							text-anchor="middle"
+							opacity={selected == null || hot ? 1 : 0.2}>{e.label}</text
+						>
+					{:else}
+						<path
+							d={edgePath(e)}
+							fill="none"
+							stroke={hot ? 'var(--accent)' : '#888'}
+							stroke-width={hot ? 2 : 1.2}
+							marker-end="url(#{hot ? 'arrowsel' : 'arrow'})"
+							opacity={selected == null ? 0.55 : hot ? 1 : 0.1}
+						/>
+					{/if}
 				{/each}
 
 				{#each layout.nodes as n (n.id)}
@@ -447,18 +521,13 @@
 								{/if}
 							{/each}
 						{:else}
-							<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-							<text
-								x={n.x + n.w / 2}
-								y={n.y + n.h / 2 + 4}
-								text-anchor="middle"
-								class="nlabel"
-								class:clickable={!n.any}
-								onclick={() => {
-									if (!n.any && !moved) select(n.id);
-								}}>{n.label}</text
-							>
+							<text x={n.x + n.w / 2} y={n.y + 16} text-anchor="middle" class="nlabel">{n.id}</text>
 						{/if}
+						{#each n.rows as r (r.event + r.to)}
+							{@const lit = selected === n.id || selected === r.to}
+							<text x={n.x + 10} y={r.ty + 3} class="erow" class:hot={lit}>{r.event}</text>
+							<circle cx={r.px} cy={r.py} r="2" class="port" class:hot={lit} />
+						{/each}
 					</g>
 				{/each}
 			</g>
@@ -678,30 +747,21 @@
 		font-family: ui-monospace, Menlo, monospace;
 		font-size: 13px;
 	}
-	.elabel {
+	.nlabel.sel {
+		fill: var(--accent);
+	}
+	.erow {
 		fill: var(--event);
 		font-family: ui-monospace, Menlo, monospace;
 		font-size: 11px;
-		paint-order: stroke;
-		stroke: var(--bg);
-		stroke-width: 3px;
 	}
-	.elabel.hot {
+	.erow.hot {
 		fill: var(--accent);
-		font-weight: 600;
 	}
-	.chain-arrow {
-		fill: var(--dim);
-		font-family: ui-monospace, Menlo, monospace;
-		font-size: 10px;
+	.port {
+		fill: #888;
 	}
-	.chain-event {
-		fill: var(--event);
-		font-family: ui-monospace, Menlo, monospace;
-		font-size: 10px;
-		opacity: 0.7;
-	}
-	.nlabel.sel {
+	.port.hot {
 		fill: var(--accent);
 	}
 	.chain-divider {
@@ -717,5 +777,16 @@
 	}
 	.chain-slot:hover {
 		fill: color-mix(in srgb, var(--fg) 8%, transparent);
+	}
+	.chain-arrow {
+		fill: var(--dim);
+		font-family: ui-monospace, Menlo, monospace;
+		font-size: 10px;
+	}
+	.chain-event {
+		fill: var(--event);
+		font-family: ui-monospace, Menlo, monospace;
+		font-size: 10px;
+		opacity: 0.7;
 	}
 </style>
