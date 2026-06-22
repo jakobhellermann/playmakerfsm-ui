@@ -71,19 +71,30 @@
 	const namedScenes = $derived(scenes.filter((s) => s.named));
 	const otherScenes = $derived(scenes.filter((s) => !s.named));
 
-	// group scene names sharing a prefix before the first `_` (Abyss_01, Abyss_02 -> Abyss/01, /02);
-	// a prefix with a single scene stays a plain top-level entry. ordered by first file in each group.
+	// group rows by a shared prefix; a prefix with a single member stays a plain entry. groups are
+	// ordered by their first file, members keep their (file-sorted) order.
 	type SceneGroup = { prefix: string; file0: string; items: SceneRow[] };
-	const namedGroups = $derived.by(() => {
+	function groupScenes(rows: SceneRow[], keyOf: (s: SceneRow) => string): SceneGroup[] {
 		const by = new Map<string, SceneRow[]>();
-		for (const s of namedScenes) {
-			const prefix = s.name.split('_')[0];
-			(by.get(prefix) ?? by.set(prefix, []).get(prefix)!).push(s);
+		for (const s of rows) {
+			const k = keyOf(s);
+			(by.get(k) ?? by.set(k, []).get(k)!).push(s);
 		}
 		return [...by.entries()]
 			.map(([prefix, items]): SceneGroup => ({ prefix, items, file0: items[0].file }))
 			.sort((a, b) => coll.compare(a.file0, b.file0));
-	});
+	}
+
+	// scene names: prefix before the first `_` (Abyss_01, Abyss_02 -> Abyss)
+	const namedGroups = $derived(groupScenes(namedScenes, (s) => s.name.split('_')[0]));
+	// asset files: the leading token before `_assets_` / first `_` (localpoolprefabs_assets_… ->
+	// localpoolprefabs), else the name with a trailing number stripped (sharedassets176 -> sharedassets)
+	const otherGroupKey = (file: string) => {
+		const s = sceneLabel(file).replace(/\.(assets|bundle)$/, '');
+		const us = s.indexOf('_');
+		return us > 0 ? s.slice(0, us) : s.replace(/\d+$/, '') || s;
+	};
+	const otherGroups = $derived(groupScenes(otherScenes, (s) => otherGroupKey(s.file)));
 
 	type FsmLeaf = { name: string; hash: string };
 	type TreeNode = { name: string; children: Map<string, TreeNode>; fsms: FsmLeaf[] };
@@ -153,6 +164,34 @@
 	</ul>
 {/snippet}
 
+{#snippet groupList(groups: SceneGroup[])}
+	<ul class="grouplist">
+		{#each groups as g (g.prefix)}
+			<li>
+				{#if g.items.length > 1}
+					<details open={!!query}>
+						<summary>{g.prefix} <span class="dim badge">{g.items.length}</span></summary>
+						<ul class="sublist">
+							{#each g.items as s (s.file)}
+								<li>
+									<a class="rowlink" href={hrefFor({ scene: s.file })} title={s.file}>{s.name}</a>
+									<span class="dim badge">{s.count}</span>
+								</li>
+							{/each}
+						</ul>
+					</details>
+				{:else}
+					{@const s = g.items[0]}
+					<span class="single">
+						<a class="rowlink" href={hrefFor({ scene: s.file })} title={s.file}>{s.name}</a>
+						<span class="dim badge">{s.count}</span>
+					</span>
+				{/if}
+			</li>
+		{/each}
+	</ul>
+{/snippet}
+
 <header>
 	<div class="topline">
 		<h1>PlayMaker FSM browser</h1>
@@ -187,39 +226,10 @@
 	<p class="msg err">{String(indexQuery.error)}</p>
 {:else if scene === null}
 	<div class="count dim">{namedScenes.length} scenes</div>
-	<div class="scenes">
-		{#each namedGroups as g (g.prefix)}
-			{#if g.items.length > 1}
-				<div class="grp">
-					<div class="grphead">{g.prefix} <span class="dim badge">{g.items.length}</span></div>
-					<ul class="sublist">
-						{#each g.items as s (s.file)}
-							<li>
-								<a class="rowlink" href={hrefFor({ scene: s.file })} title={s.file}>{s.name}</a>
-								<span class="dim badge">{s.count}</span>
-							</li>
-						{/each}
-					</ul>
-				</div>
-			{:else}
-				{@const s = g.items[0]}
-				<div class="grp">
-					<a class="rowlink" href={hrefFor({ scene: s.file })} title={s.file}>{s.name}</a>
-					<span class="dim badge">{s.count}</span>
-				</div>
-			{/if}
-		{/each}
-	</div>
+	{@render groupList(namedGroups)}
 	{#if otherScenes.length}
 		<div class="count dim section">{otherScenes.length} other files</div>
-		<ul class="grid">
-			{#each otherScenes as s (s.file)}
-				<li>
-					<a class="rowlink" href={hrefFor({ scene: s.file })} title={s.file}>{s.name}</a>
-					<span class="dim badge">{s.count}</span>
-				</li>
-			{/each}
-		</ul>
+		{@render groupList(otherGroups)}
 	{/if}
 {:else}
 	<div class="count dim">{sceneCount} FSMs</div>
@@ -304,34 +314,24 @@
 		border-top: 1px solid #2a2a2a;
 		padding-top: 0.8rem;
 	}
-	.grid {
+	.grouplist {
 		list-style: none;
 		margin: 0;
 		padding: 0.4rem 1.25rem 2rem;
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-		gap: 0.1rem 1.5rem;
 	}
-	.scenes {
-		padding: 0.4rem 1.25rem 2rem;
-		column-width: 230px;
-		column-gap: 2rem;
+	.grouplist > li {
+		padding: 0.08rem 0;
 	}
-	.grp {
-		display: flex;
+	.grouplist summary {
+		cursor: pointer;
+		font-weight: 600;
+		padding: 0.06rem 0;
+	}
+	.single {
+		display: inline-flex;
 		align-items: baseline;
 		gap: 0.4rem;
 		min-width: 0;
-		/* keep a group (header + its scenes) together within one column */
-		break-inside: avoid;
-		margin-bottom: 0.7rem;
-	}
-	.grp:has(.sublist) {
-		display: block;
-	}
-	.grphead {
-		font-weight: 600;
-		margin-bottom: 0.15rem;
 	}
 	.sublist {
 		list-style: none;
@@ -344,13 +344,6 @@
 		align-items: baseline;
 		gap: 0.4rem;
 		padding: 0.05rem 0;
-		min-width: 0;
-	}
-	.grid li {
-		display: flex;
-		align-items: baseline;
-		gap: 0.4rem;
-		padding: 0.15rem 0;
 		min-width: 0;
 	}
 	.rowlink {
