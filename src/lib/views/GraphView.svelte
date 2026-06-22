@@ -44,10 +44,8 @@
 	// a state inside a chain node: its name + the event that transitions to the next state (empty on last)
 	type ChainState = { name: string; event: string };
 
-	// ty = label y inside the box; (px,py) = where the edge leaves (right edge per row, or bottom-centre
-	// when the state has a single out-transition so it drops straight down)
-	type Row = { event: string; to: string; ty: number; px: number; py: number; down: boolean };
-
+	// ty = label y inside the box; (px,py) = the bottom-edge port the edge leaves from
+	type Row = { event: string; to: string; ty: number; px: number; py: number };
 	type Node = {
 		id: string;
 		x: number;
@@ -65,7 +63,6 @@
 		to: string;
 		global: boolean;
 		// port-based state transitions:
-		down?: boolean;
 		sx?: number;
 		sy?: number;
 		tx?: number;
@@ -167,20 +164,16 @@
 			const top = n.y - n.height / 2;
 			const label = grp.states[0];
 			const trans = transOf(label);
-			const single = trans.length === 1;
 			const chain = grp.states.length > 1;
-			const rows: Row[] = trans.map((t, i) => {
-				const ty = chain ? top + PAD_Y + i * ROW + ROW / 2 : top + HEADER + i * ROW + ROW / 2;
-				// single out-edge leaves straight down from the bottom; multi-edge ports get a side below
-				return {
-					event: t.event,
-					to: t.to_state,
-					ty,
-					px: left + n.width / 2,
-					py: top + n.height,
-					down: single
-				};
-			});
+			// ports sit along the bottom edge, spread evenly in row order (1st row leftmost), so edges
+			// drop straight down — one out-edge is centred, two are left-ish/right-ish, etc.
+			const rows: Row[] = trans.map((t, i) => ({
+				event: t.event,
+				to: t.to_state,
+				ty: chain ? top + PAD_Y + i * ROW + ROW / 2 : top + HEADER + i * ROW + ROW / 2,
+				px: left + (n.width * (i + 1)) / (trans.length + 1),
+				py: top + n.height
+			}));
 			return {
 				id: label,
 				x: left,
@@ -208,21 +201,13 @@
 				if (tg == null) continue;
 				const target = nodes[tg];
 				if (!target) continue;
-				const tgtCx = target.x + target.w / 2;
-				if (!r.down) {
-					// leave from the side (at the row's y) that's nearer the target
-					const right = tgtCx >= n.x + n.w / 2;
-					r.px = right ? n.x + n.w : n.x;
-					r.py = r.ty;
-				}
 				edges.push({
 					from: n.id,
 					to: target.id,
 					global: n.any,
-					down: r.down,
 					sx: r.px,
 					sy: r.py,
-					tx: tgtCx,
+					tx: target.x + target.w / 2,
 					ty: target.y
 				});
 			}
@@ -274,14 +259,10 @@
 
 	const line = (pts: { x: number; y: number }[]) => pts.map((p) => `${p.x},${p.y}`).join(' ');
 
-	// cubic curve to the target's top-centre: straight down for a lone out-edge, else leaving the side
-	// (left or right) toward the target; global arrows are 2-point polylines rendered separately
-	const edgePath = (e: Edge) => {
-		if (e.down)
-			return `M ${e.sx!} ${e.sy!} C ${e.sx!} ${e.sy! + 40}, ${e.tx!} ${e.ty! - 40}, ${e.tx!} ${e.ty!}`;
-		const dx = e.tx! < e.sx! ? -50 : 50;
-		return `M ${e.sx!} ${e.sy!} C ${e.sx! + dx} ${e.sy!}, ${e.tx!} ${e.ty! - 50}, ${e.tx!} ${e.ty!}`;
-	};
+	// cubic curve dropping from a bottom port down to the target's top-centre; global arrows are
+	// 2-point polylines rendered separately
+	const edgePath = (e: Edge) =>
+		`M ${e.sx!} ${e.sy!} C ${e.sx!} ${e.sy! + 40}, ${e.tx!} ${e.ty! - 40}, ${e.tx!} ${e.ty!}`;
 
 	// pan/zoom: an SVG <g> transform driven by mouse drag (pan) and wheel (zoom-to-cursor).
 	// `view` null = follow the fit-to-canvas transform; any interaction pins it to concrete values.
