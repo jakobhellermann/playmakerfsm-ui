@@ -39,6 +39,16 @@ export function isDeadAction(a: Action): boolean {
 	return DEAD_RULES[short(a.class)]?.(a) ?? false;
 }
 
+/**
+ * Params that are pure noise in the pseudo view because they sit at their PlayMaker default and carry
+ * no information (these conventions hold across all actions, so the rule stays generic). Hidden from
+ * the colourised view only — the canonical text form keeps every param.
+ */
+export function isHiddenParam(p: Param): boolean {
+	// `everyFrame` defaults to false on every action's Reset(); `true` is the only informative value.
+	return p.name === 'everyFrame' && p.value.type === 'Bool' && p.value.value === false;
+}
+
 /** The variable a param value is bound to, if any (across the different var-bearing encodings). */
 function varName(v: ParamValue): string | null {
 	switch (v.type) {

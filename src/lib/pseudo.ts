@@ -1,6 +1,6 @@
 import type { Action, FsmModel, Param } from './model';
 import { fmtValue, short, valueKind } from './fmt';
-import { storeParam } from './actions';
+import { isHiddenParam, storeParam } from './actions';
 
 /** compact one-line arg list for an action: `name=value, …` (unnamed params show just the value) */
 export function args(params: Param[]): string {
@@ -32,7 +32,7 @@ export interface Token {
 export function actionTokens(a: Action): Token[] {
 	const toks: Token[] = [];
 	const store = storeParam(a);
-	const rest = store ? a.params.filter((p) => p !== store) : a.params;
+	const rest = a.params.filter((p) => p !== store && !isHiddenParam(p));
 	if (store) toks.push({ text: fmtValue(store.value), cls: 'var' }, { text: ' = ' });
 	toks.push({ text: short(a.class), cls: 'act' }, { text: '(' });
 	rest.forEach((p, j) => {
