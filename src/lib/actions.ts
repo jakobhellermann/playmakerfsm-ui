@@ -84,6 +84,9 @@ export function isHiddenParam(a: Action, p: Param): boolean {
 	// An unbound variable slot (`<var>`): use-variable is set but no variable was chosen, so the param
 	// has no effect (e.g. SetPosition leaves that axis unchanged, a store writes nowhere).
 	if (p.value.type === 'PackedVar' && p.value.value === null) return true;
+	// Same idea for an FsmVar slot that points at no variable: `(unset var)` / `(unused)`.
+	if (p.value.type === 'Var' && (p.value.value.type === 'Unset' || p.value.value.type === 'Unused'))
+		return true;
 	// An unset event branch (`equal=(none)`, `isFalse=(none)` …) fires nothing — keep only wired events.
 	if (p.value.type === 'Event' && p.value.value === null) return true;
 	return false;
