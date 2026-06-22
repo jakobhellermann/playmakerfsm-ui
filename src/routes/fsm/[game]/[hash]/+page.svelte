@@ -1,38 +1,44 @@
 <script lang="ts">
 	import { base } from '$app/paths';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { loadModel, type Game } from '$lib/data';
-	import type { FsmModel } from '$lib/model';
+	import { createQuery } from '@tanstack/svelte-query';
+	import { fetchModel, isGame, type Game } from '$lib/data';
 	import { short } from '$lib/fmt';
 	import ParamRow from '$lib/ParamRow.svelte';
 
-	let model = $state<FsmModel | null>(null);
-	let error = $state<string | null>(null);
+	const game = $derived((page.params.game ?? 'hk') as Game);
+	const hash = $derived(page.params.hash ?? '');
 
-	$effect(() => {
-		const game = page.params.game as Game;
-		const hash = page.params.hash;
-		model = null;
-		error = null;
-		if (!hash) return;
-		loadModel(game, hash)
-			.then((m) => {
-				if (page.params.hash === hash) model = m;
-			})
-			.catch((e) => {
-				if (page.params.hash === hash) error = String(e);
-			});
-	});
+	const modelQuery = createQuery(() => ({
+		queryKey: ['model', game, hash],
+		queryFn: () => fetchModel(game, hash),
+		enabled: isGame(game) && hash !== ''
+	}));
+
+	function back() {
+		if (history.length > 1) history.back();
+		else goto(`${base}/`);
+	}
 </script>
 
-<nav><a href="{base}/">← back</a> <span class="dim mono">{page.params.hash}</span></nav>
+<nav>
+	<a
+		href="{base}/"
+		onclick={(e) => {
+			e.preventDefault();
+			back();
+		}}>← back</a
+	>
+	<span class="dim mono">{hash}</span>
+</nav>
 
-{#if error}
-	<p class="err">{error}</p>
-{:else if !model}
+{#if modelQuery.isError}
+	<p class="err">{String(modelQuery.error)}</p>
+{:else if !modelQuery.data}
 	<p class="dim">loading…</p>
 {:else}
-	{@const m = model}
+	{@const m = modelQuery.data}
 	<h1>{m.name}</h1>
 	<div class="dim">
 		start=<span class="state">{m.start_state}</span> · {m.states.length} states · {m.events.length}
