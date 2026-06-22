@@ -8,17 +8,26 @@
 
 <script lang="ts">
 	import dagre from '@dagrejs/dagre';
+	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import type { FsmModel } from '$lib/model';
 	import { actionTokens } from '$lib/pseudo';
 	import { isDeadAction } from '$lib/actions';
 
 	let { model }: { model: FsmModel } = $props();
 
-	// state selected in the graph -> its pseudocode shows in the sidebar
-	let selected = $state<string | null>(null);
+	// the selected state lives in the URL (?state=) so it survives reload and is shareable; its
+	// pseudocode shows in the sidebar
+	const selected = $derived(page.url.searchParams.get('state'));
 	const selectedState = $derived(
 		selected ? (model.states.find((s) => s.name === selected) ?? null) : null
 	);
+	function select(name: string | null) {
+		const p = new URLSearchParams(page.url.searchParams);
+		if (name) p.set('state', name);
+		else p.delete('state');
+		goto(`?${p}`, { replaceState: true, keepFocus: true, noScroll: true });
+	}
 
 	const ANY = '★ any state';
 
@@ -99,11 +108,10 @@
 	let view = $state<{ tx: number; ty: number; k: number } | null>(null);
 	const cur = $derived(view ?? fit);
 
-	// re-fit and drop the selection whenever the layout (i.e. the model) changes
+	// re-fit whenever the layout (i.e. the model) changes
 	$effect(() => {
 		void layout;
 		view = null;
-		selected = null;
 	});
 
 	function zoomAround(mx: number, my: number, factor: number) {
@@ -217,7 +225,7 @@
 							if (!n.any) e.stopPropagation();
 						}}
 						onclick={() => {
-							if (!n.any) selected = n.id;
+							if (!n.any) select(n.id);
 						}}
 					>
 						<rect
@@ -246,7 +254,7 @@
 			<div class="resizer" onmousedown={resizeDown} class:active={!!resizing}></div>
 			<div class="sbhead">
 				<span class="state">{selectedState.name}</span>
-				<button class="close" onclick={() => (selected = null)} aria-label="close">×</button>
+				<button class="close" onclick={() => select(null)} aria-label="close">×</button>
 			</div>
 			<div class="code">
 				{#each selectedState.actions as a, i (i)}
@@ -263,7 +271,7 @@
 					<div class="line">
 						<span class="kw">on</span> <span class="event">{t.event}</span>
 						<span class="arrow">→</span>
-						<button class="state link" onclick={() => (selected = t.to_state)}>{t.to_state}</button>
+						<button class="state link" onclick={() => select(t.to_state)}>{t.to_state}</button>
 					</div>
 				{/each}
 				{#if !selectedState.actions.length && !selectedState.transitions.length}
