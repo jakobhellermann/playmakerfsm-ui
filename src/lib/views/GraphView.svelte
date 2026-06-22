@@ -171,7 +171,7 @@
 				event: t.event,
 				to: t.to_state,
 				ty: chain ? top + PAD_Y + i * ROW + ROW / 2 : top + HEADER + i * ROW + ROW / 2,
-				px: left + (n.width * (i + 1)) / (trans.length + 1),
+				px: left + n.width / 2, // placeholder; assigned a bottom slot (by target x) below
 				py: top + n.height
 			}));
 			return {
@@ -194,23 +194,28 @@
 		const byId = new Map(nodes.map((n) => [n.id, n]));
 
 		const edges: Edge[] = [];
-		for (const n of nodes)
-			for (const r of n.rows) {
-				// resolve target: first state of the target's group
-				const tg = groupOf.get(r.to);
-				if (tg == null) continue;
-				const target = nodes[tg];
-				if (!target) continue;
+		const cx = (m: Node) => m.x + m.w / 2;
+		for (const n of nodes) {
+			// order this state's out-edges by target x, then spread their bottom ports left→right in
+			// that order, so the edges fan out without crossing each other
+			const outs = n.rows
+				.map((r) => ({ r, target: nodes[groupOf.get(r.to)!] }))
+				.filter((o): o is { r: Row; target: Node } => !!o.target)
+				.sort((a, b) => cx(a.target) - cx(b.target));
+			outs.forEach((o, j) => {
+				o.r.px = n.x + (n.w * (j + 1)) / (outs.length + 1);
+				o.r.py = n.y + n.h;
 				edges.push({
 					from: n.id,
-					to: target.id,
+					to: o.target.id,
 					global: n.any,
-					sx: r.px,
-					sy: r.py,
-					tx: target.x + target.w / 2,
-					ty: target.y
+					sx: o.r.px,
+					sy: o.r.py,
+					tx: cx(o.target),
+					ty: o.target.y
 				});
-			}
+			});
+		}
 
 		// global transitions: short incoming arrows above each target, spread horizontally when multiple
 		const globalsByTarget = new Map<string, { event: string }[]>();
