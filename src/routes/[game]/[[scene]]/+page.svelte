@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { base } from '$app/paths';
-	import { goto } from '$app/navigation';
+	import { afterNavigate, goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { createQuery } from '@tanstack/svelte-query';
 	import {
@@ -17,6 +17,7 @@
 
 	// navigation state is the path (/[game]/[scene]); the filter stays a transient ?q= query
 	const game = $derived<Game>(isGame(page.params.game ?? null) ? (page.params.game as Game) : 'ss');
+	const gameLabel = $derived(GAMES.find((g) => g.id === game)?.label ?? game);
 	const scene = $derived(page.params.scene ?? null); // null = scenes view (SvelteKit decodes %2F)
 	const query = $derived(page.url.searchParams.get('q') ?? '');
 
@@ -121,10 +122,13 @@
 		scene === null ? 'filter scenes & files…' : 'filter objects & FSMs…'
 	);
 
-	// focus the filter on mount so you can start typing right away
-	function focusOnMount(node: HTMLInputElement) {
-		node.focus();
-	}
+	// focus the filter on arrival so you can type right away — afterNavigate runs after SvelteKit's
+	// own post-navigation focus handling (which would otherwise steal it). Skip if already focused so
+	// it doesn't fight the ?q= filter updates while typing.
+	let filterEl = $state<HTMLInputElement>();
+	afterNavigate(() => {
+		if (filterEl && document.activeElement !== filterEl) filterEl.focus();
+	});
 </script>
 
 {#snippet fsmLeaves(node: TreeNode)}
@@ -210,7 +214,7 @@
 	</div>
 
 	<nav class="crumbs">
-		<a class="crumb" class:active={scene === null} href={hrefFor({})}>scenes</a>
+		<a class="crumb" class:active={scene === null} href={hrefFor({})}>{gameLabel}</a>
 		{#if scene !== null}
 			<span class="sep">›</span>
 			<span class="crumb active" title={scene}>{sceneTitle(scene)}</span>
@@ -222,7 +226,7 @@
 		{placeholder}
 		value={query}
 		oninput={(e) => setQuery(e.currentTarget.value)}
-		use:focusOnMount
+		bind:this={filterEl}
 	/>
 </header>
 
