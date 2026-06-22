@@ -33,7 +33,7 @@ describe('fmtObjectRef', () => {
 
 describe('fmtGoRef', () => {
 	it('self / variable / object', () => {
-		expect(fmtGoRef('SelfOwner')).toBe('Owner (Self)');
+		expect(fmtGoRef('SelfOwner')).toBe('Self');
 		expect(fmtGoRef({ Var: 'Hero' })).toBe('var "Hero"');
 		const o: ObjectRef = { file: null, target: { kind: 'Null' } };
 		expect(fmtGoRef({ Object: o })).toBe('<null>');
