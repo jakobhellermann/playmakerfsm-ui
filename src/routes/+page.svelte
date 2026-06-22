@@ -13,6 +13,7 @@
 		type Game
 	} from '$lib/data';
 	import { groupNamedScenes, groupOtherFiles, type SceneGroup } from '$lib/scenes';
+	import { isGroupOpen, setGroupOpen } from '$lib/openGroups';
 
 	// navigation + filter state live in the URL so reloads/back restore the exact view
 	const params = $derived(page.url.searchParams);
@@ -145,12 +146,19 @@
 	</ul>
 {/snippet}
 
-{#snippet groupList(groups: SceneGroup<SceneRow>[])}
+{#snippet groupList(groups: SceneGroup<SceneRow>[], ns: string)}
 	<ul class="grouplist">
 		{#each groups as g (g.prefix)}
+			{@const key = `${game}:${ns}:${g.prefix}`}
 			<li>
 				{#if g.group}
-					<details open={!!query}>
+					<!-- open state persists across navigation (openGroups); a filter force-opens transiently -->
+					<details
+						open={isGroupOpen(key) || !!query}
+						ontoggle={(e) => {
+							if (!query) setGroupOpen(key, e.currentTarget.open);
+						}}
+					>
 						<summary>{g.prefix} <span class="dim badge">{g.items.length}</span></summary>
 						<ul class="sublist">
 							{#each g.items as s (s.file)}
@@ -207,10 +215,10 @@
 	<p class="msg err">{String(indexQuery.error)}</p>
 {:else if scene === null}
 	<div class="count dim">{namedScenes.length} scenes</div>
-	{@render groupList(namedGroups)}
+	{@render groupList(namedGroups, 'named')}
 	{#if otherScenes.length}
 		<div class="count dim section">{otherScenes.length} other files</div>
-		{@render groupList(otherGroups)}
+		{@render groupList(otherGroups, 'other')}
 	{/if}
 {:else}
 	<div class="count dim">{sceneCount} FSMs</div>
