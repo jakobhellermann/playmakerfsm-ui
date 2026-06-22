@@ -1,9 +1,9 @@
 import type { Action, Param, ParamValue } from './model';
 import { short } from './fmt';
 
-// Action-specific semantics live here, kept out of the generic fmt/pseudo rendering.
-// Each rule decides whether an action has no observable effect in the shipped asset
-// (e.g. a compare whose branch events are all unset and whose result goes nowhere).
+// Action-specific semantics live here, kept out of the generic fmt/pseudo rendering: which actions
+// are no-ops (dead), which params are default noise the pseudo view hides, and which param is an
+// action's variable output. Defaults are taken from the PlayMaker decomp (each action's Reset).
 
 const value = (a: Action, name: string): ParamValue | undefined =>
 	a.params.find((p) => p.name === name)?.value;
@@ -45,6 +45,9 @@ const HIDDEN_EMPTY_STRINGS = new Set(['Tk2dPlayAnimation.animLibName']);
 /** `<short class>.<param>` pairs whose literal `0` is the action's default (per its Reset) → hide it. */
 const HIDDEN_ZERO_FLOATS = new Set(['FloatCompare.tolerance']);
 
+/** `<short class>.<param>` pairs whose literal `false` is the action's default (per its Reset) → hide. */
+const HIDDEN_FALSE_BOOLS = new Set(['AnimatePositionTo.reverse', 'AnimatePositionTo.realTime']);
+
 /**
  * Actions whose `FsmEvent` params are pure result branches: an unset (`(none)`) branch is noise, so
  * show only the wired ones. (Compare/test actions — their events are the whole point of the result.)
@@ -75,6 +78,13 @@ export function isHiddenParam(a: Action, p: Param): boolean {
 		p.value.type === 'Float' &&
 		p.value.value === 0 &&
 		HIDDEN_ZERO_FLOATS.has(`${short(a.class)}.${p.name}`)
+	)
+		return true;
+	// Whitelisted false-bool defaults (e.g. AnimatePositionTo.reverse / .realTime).
+	if (
+		p.value.type === 'Bool' &&
+		p.value.value === false &&
+		HIDDEN_FALSE_BOOLS.has(`${short(a.class)}.${p.name}`)
 	)
 		return true;
 	// `FsmOwnerDefault` set to UseOwner (`Self`) is the implicit target — only a specified object is news.
