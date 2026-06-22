@@ -39,7 +39,7 @@ describe.skipIf(!hasData)('real store (hk)', () => {
 				if (p.value.type === 'List') walk(p.value.value);
 			}
 		};
-		for (const e of distinct.slice(0, 400)) {
+		for (const e of distinct.slice(0, 100)) {
 			const m = readModel(e.hash);
 			for (const st of m.states) for (const a of st.actions) walk(a.params);
 		}

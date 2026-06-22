@@ -10,7 +10,7 @@ content-addressed JSON store produced by the sibling Rust crate `../playmakerfsm
 - `pnpm build` — static export (adapter-static, SPA with `404.html` fallback) into `build/`.
 - `pnpm check` — `svelte-check` (types).
 - `pnpm test` — vitest. Unit tests for the pure formatters (`fmt.ts`, `pseudo.ts`); `store.test.ts`
-  snapshots a few FSMs and scans ~400 real models to catch fmt/`model.ts` drift (skips if the data
+  snapshots a few FSMs and scans 100 real models to catch fmt/`model.ts` drift (skips if the data
   symlink is absent). Re-snapshot with `pnpm exec vitest -u` after intended output changes.
 - `pnpm fmt` / `pnpm fmt:check` — oxfmt (config in `.oxfmtrc.json`; formats `.svelte` too via `svelte: true`).
 - `pnpm lint` — oxlint.
