@@ -3,7 +3,15 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { createQuery } from '@tanstack/svelte-query';
-	import { GAMES, fetchIndex, goLeaf, isGame, sceneLabel, type Game } from '$lib/data';
+	import {
+		GAMES,
+		fetchIndex,
+		fetchSceneNames,
+		goLeaf,
+		isGame,
+		sceneLabel,
+		type Game
+	} from '$lib/data';
 
 	// navigation + filter state live in the URL so reloads/back restore the exact view
 	const params = $derived(page.url.searchParams);
@@ -37,30 +45,31 @@
 	}));
 	const entries = $derived(indexQuery.data ?? []);
 
+	const sceneNamesQuery = createQuery(() => ({
+		queryKey: ['sceneNames', game],
+		queryFn: () => fetchSceneNames(game)
+	}));
+	const sceneNames = $derived(sceneNamesQuery.data ?? new Map<string, string>());
+	const sceneTitle = (file: string) => sceneNames.get(file) ?? sceneLabel(file);
+
 	const match = (s: string) => s.toLowerCase().includes(query.trim().toLowerCase());
 
+	// sort by file (numeric, so level2 < level10) but show the human scene name when known
+	const byFile = (a: { file: string }, b: { file: string }) => coll.compare(a.file, b.file);
+
+	type SceneRow = { file: string; name: string; count: number; named: boolean };
 	const scenes = $derived.by(() => {
 		const by = new Map<string, number>();
 		for (const e of entries) by.set(e.file, (by.get(e.file) ?? 0) + 1);
-		return [...by.entries()]
-			.map(([file, count]) => ({ file, name: sceneLabel(file), count }))
-			.filter((s) => match(s.name))
-			.sort(byName);
+		const rows: SceneRow[] = [...by.entries()].map(([file, count]) => {
+			const named = sceneNames.has(file);
+			return { file, count, named, name: named ? sceneNames.get(file)! : sceneLabel(file) };
+		});
+		return rows.filter((s) => match(s.name) || match(s.file)).sort(byFile);
 	});
-
-	// area = the scene-name prefix before the first underscore; only shown as quick-filter chips when
-	// it actually groups (true for Silksong's `abyss_05`, `bellway_…`; not for HK's `levelN`)
-	const areas = $derived.by(() => {
-		if (scene !== null) return [];
-		const files = new Set(entries.map((e) => e.file));
-		const by = new Map<string, number>();
-		for (const f of files) {
-			const a = sceneLabel(f).split('_')[0];
-			by.set(a, (by.get(a) ?? 0) + 1);
-		}
-		if (by.size < 2 || by.size > files.size * 0.7) return [];
-		return [...by.entries()].map(([name, count]) => ({ name, count })).sort(byName);
-	});
+	// real game scenes first (have a scene name), then the leftover asset files
+	const namedScenes = $derived(scenes.filter((s) => s.named));
+	const otherScenes = $derived(scenes.filter((s) => !s.named));
 
 	type FsmLeaf = { name: string; hash: string };
 	type TreeNode = { name: string; children: Map<string, TreeNode>; fsms: FsmLeaf[] };
@@ -144,7 +153,7 @@
 		<a class="crumb" class:active={scene === null} href={hrefFor({})}>scenes</a>
 		{#if scene !== null}
 			<span class="sep">›</span>
-			<span class="crumb active">{sceneLabel(scene)}</span>
+			<span class="crumb active" title={scene}>{sceneTitle(scene)}</span>
 		{/if}
 	</nav>
 
@@ -163,28 +172,26 @@
 {:else if indexQuery.isError}
 	<p class="msg err">{String(indexQuery.error)}</p>
 {:else if scene === null}
-	{#if areas.length}
-		<div class="chips">
-			{#each areas as a (a.name)}
-				<button
-					class="chip"
-					class:active={query === a.name}
-					onclick={() => setQuery(query === a.name ? '' : a.name)}
-				>
-					{a.name} <span class="dim">{a.count}</span>
-				</button>
-			{/each}
-		</div>
-	{/if}
-	<div class="count dim">{scenes.length} scenes</div>
+	<div class="count dim">{namedScenes.length} scenes</div>
 	<ul class="grid">
-		{#each scenes as s (s.file)}
+		{#each namedScenes as s (s.file)}
 			<li>
-				<a class="rowlink" href={hrefFor({ scene: s.file })}>{s.name}</a>
+				<a class="rowlink" href={hrefFor({ scene: s.file })} title={s.file}>{s.name}</a>
 				<span class="dim badge">{s.count}</span>
 			</li>
 		{/each}
 	</ul>
+	{#if otherScenes.length}
+		<div class="count dim section">{otherScenes.length} other files</div>
+		<ul class="grid">
+			{#each otherScenes as s (s.file)}
+				<li>
+					<a class="rowlink" href={hrefFor({ scene: s.file })} title={s.file}>{s.name}</a>
+					<span class="dim badge">{s.count}</span>
+				</li>
+			{/each}
+		</ul>
+	{/if}
 {:else}
 	<div class="count dim">{sceneCount} FSMs</div>
 	<div class="treewrap">
@@ -263,24 +270,10 @@
 		padding: 0.6rem 1.25rem 0;
 		font-size: 0.85rem;
 	}
-	.chips {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.35rem;
-		padding: 0.7rem 1.25rem 0;
-	}
-	.chip {
-		background: var(--panel);
-		color: var(--fg);
-		border: 1px solid #333;
-		border-radius: 999px;
-		padding: 0.15rem 0.6rem;
-		cursor: pointer;
-		font-size: 0.82rem;
-	}
-	.chip.active {
-		border-color: var(--accent);
-		color: var(--accent);
+	.count.section {
+		margin-top: 1rem;
+		border-top: 1px solid #2a2a2a;
+		padding-top: 0.8rem;
 	}
 	.grid {
 		list-style: none;
