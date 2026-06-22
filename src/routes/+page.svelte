@@ -12,6 +12,7 @@
 		sceneLabel,
 		type Game
 	} from '$lib/data';
+	import { groupNamedScenes, groupOtherFiles, type SceneGroup } from '$lib/scenes';
 
 	// navigation + filter state live in the URL so reloads/back restore the exact view
 	const params = $derived(page.url.searchParams);
@@ -71,41 +72,8 @@
 	const namedScenes = $derived(scenes.filter((s) => s.named));
 	const otherScenes = $derived(scenes.filter((s) => !s.named));
 
-	// group rows by a shared prefix. a group is rendered collapsibly when it has >1 member or its key
-	// is a real prefix (≠ the member's own name); a lone non-prefixed entry stays a plain row. groups
-	// are ordered by their first file, members keep their (file-sorted) order.
-	type SceneGroup = { prefix: string; file0: string; items: SceneRow[]; group: boolean };
-	function groupScenes(rows: SceneRow[], keyOf: (s: SceneRow) => string): SceneGroup[] {
-		const by = new Map<string, SceneRow[]>();
-		for (const s of rows) {
-			const k = keyOf(s);
-			(by.get(k) ?? by.set(k, []).get(k)!).push(s);
-		}
-		return [...by.entries()]
-			.map(
-				([prefix, items]): SceneGroup => ({
-					prefix,
-					items,
-					file0: items[0].file,
-					group: items.length > 1 || prefix !== items[0].name
-				})
-			)
-			.sort((a, b) => coll.compare(a.file0, b.file0));
-	}
-
-	// scene names: group on `A_<digits>` so Tutorial_01 -> Tutorial (even alone), but Quit_To_Menu
-	// (suffix isn't numeric) stays standalone.
-	const namedGroups = $derived(
-		groupScenes(namedScenes, (s) => s.name.match(/^(.+)_\d\w*$/)?.[1] ?? s.name)
-	);
-	// asset files: the leading token before `_assets_` / first `_` (localpoolprefabs_assets_… ->
-	// localpoolprefabs), else the name with a trailing number stripped (sharedassets176 -> sharedassets)
-	const otherGroupKey = (file: string) => {
-		const s = sceneLabel(file).replace(/\.(assets|bundle)$/, '');
-		const us = s.indexOf('_');
-		return us > 0 ? s.slice(0, us) : s.replace(/\d+$/, '') || s;
-	};
-	const otherGroups = $derived(groupScenes(otherScenes, (s) => otherGroupKey(s.file)));
+	const namedGroups = $derived(groupNamedScenes(namedScenes));
+	const otherGroups = $derived(groupOtherFiles(otherScenes));
 
 	type FsmLeaf = { name: string; hash: string };
 	type TreeNode = { name: string; children: Map<string, TreeNode>; fsms: FsmLeaf[] };
@@ -177,7 +145,7 @@
 	</ul>
 {/snippet}
 
-{#snippet groupList(groups: SceneGroup[])}
+{#snippet groupList(groups: SceneGroup<SceneRow>[])}
 	<ul class="grouplist">
 		{#each groups as g (g.prefix)}
 			<li>

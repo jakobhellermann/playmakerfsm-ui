@@ -12,10 +12,8 @@ export function isGame(s: string | null): s is Game {
 	return s === 'hk' || s === 'ss';
 }
 
-/** display name for a scene file (Silksong bundles carry a `scenes_scenes_scenes/…​.bundle` wrapper) */
-export function sceneLabel(file: string): string {
-	return file.replace(/^scenes_scenes_scenes\//, '').replace(/\.bundle$/, '');
-}
+// scene-name display/grouping helpers live in `scenes.ts` (kept free of `$app` so they're unit-testable)
+export { sceneLabel } from './scenes';
 
 /** leaf name of a `/`-separated GameObject hierarchy path */
 export function goLeaf(path: string): string {
