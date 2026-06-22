@@ -171,5 +171,6 @@ export function valueKind(v: ParamValue): string {
 	if (v.type === 'Event') return 'event';
 	const s = fmtValue(v);
 	if (s.startsWith('var ')) return 'var';
+	if (v.type === 'Str' || (v.type === 'FsmString' && v.value.kind === 'Literal')) return 'str';
 	return '';
 }

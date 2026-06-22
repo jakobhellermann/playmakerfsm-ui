@@ -75,6 +75,9 @@
 		/* toned-down purple so variables sit behind the eye-catching state names */
 		color: #9d8fb5;
 	}
+	.str {
+		color: #cd9178;
+	}
 	.event {
 		color: var(--event);
 	}
