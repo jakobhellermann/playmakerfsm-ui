@@ -2,6 +2,7 @@
 	import type { FsmModel } from '$lib/model';
 	import { short } from '$lib/fmt';
 	import { args } from '$lib/pseudo';
+	import { isDeadAction } from '$lib/actions';
 
 	let { model }: { model: FsmModel } = $props();
 </script>
@@ -21,7 +22,8 @@
 		<div class="blank"></div>
 		<div class="i1"><span class="kw">state</span> <span class="state">{s.name}</span> {'{'}</div>
 		{#each s.actions as a, i (i)}
-			<div class="i2" class:off={!a.enabled}>
+			{@const dead = a.enabled && isDeadAction(a)}
+			<div class="i2" class:off={!a.enabled || dead}>
 				<span class="act">{short(a.class)}</span>(<span class="args">{args(a.params)}</span
 				>){#if !a.enabled}<span class="cmt"> // disabled</span>{/if}
 			</div>
