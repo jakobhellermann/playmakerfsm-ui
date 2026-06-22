@@ -46,7 +46,12 @@ const HIDDEN_EMPTY_STRINGS = new Set(['Tk2dPlayAnimation.animLibName']);
 const HIDDEN_ZERO_FLOATS = new Set(['FloatCompare.tolerance']);
 
 /** `<short class>.<param>` pairs whose literal `false` is the action's default (per its Reset) → hide. */
-const HIDDEN_FALSE_BOOLS = new Set(['AnimatePositionTo.reverse', 'AnimatePositionTo.realTime']);
+const HIDDEN_FALSE_BOOLS = new Set([
+	'AnimatePositionTo.reverse',
+	'AnimatePositionTo.realTime',
+	'FloatAdd.perSecond',
+	'FloatSubtract.perSecond'
+]);
 
 const isEmptyString = (v: ParamValue): boolean =>
 	v.type === 'FsmString' && v.value.kind === 'Literal' && v.value.value === '';
