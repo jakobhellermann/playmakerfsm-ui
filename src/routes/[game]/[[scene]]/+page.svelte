@@ -76,8 +76,13 @@
 	const namedScenes = $derived(scenes.filter((s) => s.named));
 	const otherScenes = $derived(scenes.filter((s) => !s.named));
 
-	const namedGroups = $derived(groupNamedScenes(namedScenes));
-	const otherGroups = $derived(groupOtherFiles(otherScenes));
+	// ungrouped singles first, then the collapsible prefix groups
+	const singlesFirst = (gs: SceneGroup<SceneRow>[]) => [
+		...gs.filter((g) => !g.group),
+		...gs.filter((g) => g.group)
+	];
+	const namedGroups = $derived(singlesFirst(groupNamedScenes(namedScenes)));
+	const otherGroups = $derived(singlesFirst(groupOtherFiles(otherScenes)));
 
 	type FsmLeaf = { name: string; hash: string; pathId: number };
 	type TreeNode = { name: string; children: Map<string, TreeNode>; fsms: FsmLeaf[] };
