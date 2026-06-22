@@ -118,6 +118,33 @@ const OPERATORS: Record<string, [string, string]> = {
 // PlayMaker's Operation enum order; the first four are infix, Min/Max render as min()/max().
 const OP_SYMBOLS = ['+', '-', '*', '/', 'min', 'max'];
 
+/** Actions that are always one fixed binary op `store = a OP b` — class → [left, right, symbol]. */
+const FIXED_BINARY: Record<string, [string, string, string]> = {
+	MultiplyIntByFloat: ['integer', 'multiplyFloat', '*']
+};
+
+/** In-place compound-assignment arithmetic (`var OP= x`) — class → [targetVar, operand, symbol]. */
+const COMPOUND_OPS: Record<string, [string, string, string]> = {
+	FloatAdd: ['floatVariable', 'add', '+'],
+	FloatSubtract: ['floatVariable', 'subtract', '-'],
+	FloatMultiply: ['floatVariable', 'multiplyBy', '*'],
+	FloatDivide: ['floatVariable', 'divideBy', '/'],
+	IntAdd: ['intVariable', 'add', '+']
+};
+
+/**
+ * An in-place arithmetic action's target variable and operand, for rendering `var "x" += y`.
+ * `undefined` if the action isn't a known compound op or its target isn't a variable.
+ */
+export function compoundOp(a: Action): { target: Param; operand: Param; op: string } | undefined {
+	const def = COMPOUND_OPS[short(a.class)];
+	if (!def) return undefined;
+	const target = a.params.find((p) => p.name === def[0]);
+	const operand = a.params.find((p) => p.name === def[1]);
+	if (target && operand && varName(target.value) !== null) return { target, operand, op: def[2] };
+	return undefined;
+}
+
 /**
  * A binary math operator's operands and operator symbol, for rendering `a * b` / `min(a, b)`.
  * `undefined` if the action isn't a known operator or its `operation` enum is out of range.
@@ -125,7 +152,14 @@ const OP_SYMBOLS = ['+', '-', '*', '/', 'min', 'max'];
 export function binaryOp(
 	a: Action
 ): { left: Param; right: Param; op: string; infix: boolean } | undefined {
-	const names = OPERATORS[short(a.class)];
+	const cls = short(a.class);
+	const fixed = FIXED_BINARY[cls];
+	if (fixed) {
+		const left = a.params.find((p) => p.name === fixed[0]);
+		const right = a.params.find((p) => p.name === fixed[1]);
+		return left && right ? { left, right, op: fixed[2], infix: true } : undefined;
+	}
+	const names = OPERATORS[cls];
 	if (!names) return undefined;
 	const left = a.params.find((p) => p.name === names[0]);
 	const right = a.params.find((p) => p.name === names[1]);

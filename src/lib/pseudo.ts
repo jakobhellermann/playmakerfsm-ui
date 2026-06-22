@@ -1,6 +1,6 @@
 import type { Action, FsmModel, Param } from './model';
 import { fmtValue, short, valueKind } from './fmt';
-import { binaryOp, isHiddenParam, setter, storeParam } from './actions';
+import { binaryOp, compoundOp, isHiddenParam, setter, storeParam } from './actions';
 
 /** compact one-line arg list for an action: `name=value, …` (unnamed params show just the value) */
 export function args(params: Param[]): string {
@@ -50,6 +50,20 @@ export function actionTokens(a: Action): Token[] {
 		out.push({ text: ']' });
 		return out;
 	};
+
+	// in-place arithmetic collapses to `var "x" += y` — only when no flag (perSecond, …) is visible.
+	const comp = compoundOp(a);
+	if (comp) {
+		const used = [comp.target, comp.operand];
+		const others = a.params.filter((p) => !used.includes(p) && !isHiddenParam(a, p));
+		if (others.length === 0) {
+			return [
+				{ text: fmtValue(comp.target.value), cls: 'var' },
+				{ text: ` ${comp.op}= ` },
+				valueToken(comp.operand)
+			];
+		}
+	}
 
 	const store = storeParam(a);
 
