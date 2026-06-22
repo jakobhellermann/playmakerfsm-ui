@@ -5,7 +5,7 @@ exports[`real store (hk) > pseudocode snapshot: Achievement 1`] = `
   start State 1
 
   state State 1 {
-    Trigger2dEvent(trigger=0, collideTag="", collideLayer="", sendEvent=→"ENTER", storeCollider=var "")
+    Trigger2dEvent(trigger=OnTriggerEnter2D, collideTag="", collideLayer="", sendEvent=→"ENTER", storeCollider=var "")
     on ENTER → State 3
   }
 

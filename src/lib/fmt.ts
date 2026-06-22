@@ -151,6 +151,8 @@ export function fmtValue(v: ParamValue): string {
 			return fmtTemplate(v.value);
 		case 'Enum':
 			return fmtEnum(v.value);
+		case 'EnumMember':
+			return v.value;
 		case 'Array':
 			return fmtArray(v.value);
 		case 'Property':

@@ -60,6 +60,7 @@ export type ParamValue =
 	| { type: 'Function'; value: Call }
 	| { type: 'Template'; value: TemplateControl }
 	| { type: 'Enum'; value: EnumValue }
+	| { type: 'EnumMember'; value: string }
 	| { type: 'Array'; value: ArrayValue }
 	| { type: 'Property'; value: Property }
 	| { type: 'AnimCurve'; value: Curve }
