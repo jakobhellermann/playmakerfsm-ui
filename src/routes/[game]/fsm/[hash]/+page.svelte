@@ -53,14 +53,14 @@
 
 	function back() {
 		if (history.length > 1) history.back();
-		else goto(`${base}/`);
+		else goto(`${base}/${game}`);
 	}
 </script>
 
 <header>
 	<nav>
 		<a
-			href="{base}/"
+			href="{base}/{game}"
 			onclick={(e) => {
 				e.preventDefault();
 				back();
