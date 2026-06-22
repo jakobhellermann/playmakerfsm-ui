@@ -1,3 +1,11 @@
+<script module lang="ts">
+	import { browser } from '$app/environment';
+
+	// sidebar width is drag-resizable and persisted in localStorage
+	const SIDEBAR_KEY = 'fsm:graph-sidebar-w';
+	let sidebarWidth = $state((browser && Number(localStorage.getItem(SIDEBAR_KEY))) || 440);
+</script>
+
 <script lang="ts">
 	import dagre from '@dagrejs/dagre';
 	import type { FsmModel } from '$lib/model';
@@ -114,11 +122,29 @@
 	function down(e: MouseEvent) {
 		drag = { x: e.clientX, y: e.clientY, tx: cur.tx, ty: cur.ty };
 	}
+
+	// drag the sidebar's left edge to resize it
+	let resizing = $state<{ x: number; w: number } | null>(null);
+	function resizeDown(e: MouseEvent) {
+		e.preventDefault();
+		resizing = { x: e.clientX, w: sidebarWidth };
+	}
+
 	function move(e: MouseEvent) {
+		if (resizing) {
+			sidebarWidth = clamp(resizing.w + (resizing.x - e.clientX), 280, 760);
+			return;
+		}
 		if (!drag) return;
 		view = { tx: drag.tx + (e.clientX - drag.x), ty: drag.ty + (e.clientY - drag.y), k: cur.k };
 	}
-	const end = () => (drag = null);
+	function end() {
+		drag = null;
+		if (resizing) {
+			resizing = null;
+			if (browser) localStorage.setItem(SIDEBAR_KEY, String(sidebarWidth));
+		}
+	}
 </script>
 
 <svelte:window onmousemove={move} onmouseup={end} />
@@ -215,7 +241,9 @@
 	</div>
 
 	{#if selectedState}
-		<aside class="sidebar">
+		<aside class="sidebar" style="width: {sidebarWidth}px">
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="resizer" onmousedown={resizeDown} class:active={!!resizing}></div>
 			<div class="sbhead">
 				<span class="state">{selectedState.name}</span>
 				<button class="close" onclick={() => (selected = null)} aria-label="close">×</button>
@@ -294,12 +322,26 @@
 		stroke-width: 2.5;
 	}
 	.sidebar {
-		width: 360px;
+		position: relative;
 		flex-shrink: 0;
 		height: 100%;
 		overflow: auto;
 		border-left: 1px solid #333;
 		background: var(--bg);
+	}
+	.resizer {
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		width: 6px;
+		cursor: col-resize;
+		z-index: 2;
+	}
+	.resizer:hover,
+	.resizer.active {
+		background: var(--accent);
+		opacity: 0.5;
 	}
 	.sbhead {
 		display: flex;
