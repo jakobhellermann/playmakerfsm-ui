@@ -84,8 +84,6 @@
 			.map(([prefix, items]): SceneGroup => ({ prefix, items, file0: items[0].file }))
 			.sort((a, b) => coll.compare(a.file0, b.file0));
 	});
-	const suffix = (g: SceneGroup, s: SceneRow) =>
-		s.name.startsWith(`${g.prefix}_`) ? s.name.slice(g.prefix.length + 1) : s.name;
 
 	type FsmLeaf = { name: string; hash: string };
 	type TreeNode = { name: string; children: Map<string, TreeNode>; fsms: FsmLeaf[] };
@@ -197,9 +195,7 @@
 					<ul class="sublist">
 						{#each g.items as s (s.file)}
 							<li>
-								<a class="rowlink" href={hrefFor({ scene: s.file })} title={s.file}
-									>{suffix(g, s)}</a
-								>
+								<a class="rowlink" href={hrefFor({ scene: s.file })} title={s.file}>{s.name}</a>
 								<span class="dim badge">{s.count}</span>
 							</li>
 						{/each}
@@ -318,23 +314,24 @@
 	}
 	.scenes {
 		padding: 0.4rem 1.25rem 2rem;
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-		align-items: start;
-		gap: 0.6rem 1.5rem;
+		column-width: 230px;
+		column-gap: 2rem;
 	}
 	.grp {
 		display: flex;
 		align-items: baseline;
 		gap: 0.4rem;
 		min-width: 0;
+		/* keep a group (header + its scenes) together within one column */
+		break-inside: avoid;
+		margin-bottom: 0.7rem;
+	}
+	.grp:has(.sublist) {
+		display: block;
 	}
 	.grphead {
 		font-weight: 600;
 		margin-bottom: 0.15rem;
-	}
-	.grp:has(.sublist) {
-		display: block;
 	}
 	.sublist {
 		list-style: none;
