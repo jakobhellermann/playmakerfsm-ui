@@ -71,9 +71,10 @@
 	const namedScenes = $derived(scenes.filter((s) => s.named));
 	const otherScenes = $derived(scenes.filter((s) => !s.named));
 
-	// group rows by a shared prefix; a prefix with a single member stays a plain entry. groups are
-	// ordered by their first file, members keep their (file-sorted) order.
-	type SceneGroup = { prefix: string; file0: string; items: SceneRow[] };
+	// group rows by a shared prefix. a group is rendered collapsibly when it has >1 member or its key
+	// is a real prefix (≠ the member's own name); a lone non-prefixed entry stays a plain row. groups
+	// are ordered by their first file, members keep their (file-sorted) order.
+	type SceneGroup = { prefix: string; file0: string; items: SceneRow[]; group: boolean };
 	function groupScenes(rows: SceneRow[], keyOf: (s: SceneRow) => string): SceneGroup[] {
 		const by = new Map<string, SceneRow[]>();
 		for (const s of rows) {
@@ -81,12 +82,22 @@
 			(by.get(k) ?? by.set(k, []).get(k)!).push(s);
 		}
 		return [...by.entries()]
-			.map(([prefix, items]): SceneGroup => ({ prefix, items, file0: items[0].file }))
+			.map(
+				([prefix, items]): SceneGroup => ({
+					prefix,
+					items,
+					file0: items[0].file,
+					group: items.length > 1 || prefix !== items[0].name
+				})
+			)
 			.sort((a, b) => coll.compare(a.file0, b.file0));
 	}
 
-	// scene names: prefix before the first `_` (Abyss_01, Abyss_02 -> Abyss)
-	const namedGroups = $derived(groupScenes(namedScenes, (s) => s.name.split('_')[0]));
+	// scene names: group on `A_<digits>` so Tutorial_01 -> Tutorial (even alone), but Quit_To_Menu
+	// (suffix isn't numeric) stays standalone.
+	const namedGroups = $derived(
+		groupScenes(namedScenes, (s) => s.name.match(/^(.+)_\d\w*$/)?.[1] ?? s.name)
+	);
 	// asset files: the leading token before `_assets_` / first `_` (localpoolprefabs_assets_… ->
 	// localpoolprefabs), else the name with a trailing number stripped (sharedassets176 -> sharedassets)
 	const otherGroupKey = (file: string) => {
@@ -129,7 +140,9 @@
 	const sortedFsms = (n: TreeNode) => [...n.fsms].sort(byName);
 	const sceneCount = $derived(scene === null ? 0 : countFsms(tree));
 
-	const placeholder = $derived(scene === null ? 'filter scenes…' : 'filter objects & FSMs…');
+	const placeholder = $derived(
+		scene === null ? 'filter scenes & files…' : 'filter objects & FSMs…'
+	);
 </script>
 
 {#snippet fsmLeaves(node: TreeNode)}
@@ -168,7 +181,7 @@
 	<ul class="grouplist">
 		{#each groups as g (g.prefix)}
 			<li>
-				{#if g.items.length > 1}
+				{#if g.group}
 					<details open={!!query}>
 						<summary>{g.prefix} <span class="dim badge">{g.items.length}</span></summary>
 						<ul class="sublist">
