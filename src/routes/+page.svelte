@@ -315,7 +315,6 @@
 	/* object tree */
 	.treewrap {
 		padding: 0.4rem 1.25rem 2rem;
-		font-size: 0.9rem;
 	}
 	.tree {
 		list-style: none;
