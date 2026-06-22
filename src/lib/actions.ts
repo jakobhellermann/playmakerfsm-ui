@@ -42,6 +42,9 @@ export function isDeadAction(a: Action): boolean {
 /** `<short class>.<param>` pairs whose empty-string literal is just an unset default → hide it. */
 const HIDDEN_EMPTY_STRINGS = new Set(['Tk2dPlayAnimation.animLibName']);
 
+/** `<short class>.<param>` pairs whose literal `0` is the action's default (per its Reset) → hide it. */
+const HIDDEN_ZERO_FLOATS = new Set(['FloatCompare.tolerance']);
+
 /**
  * Actions whose `FsmEvent` params are pure result branches: an unset (`(none)`) branch is noise, so
  * show only the wired ones. (Compare/test actions — their events are the whole point of the result.)
@@ -66,6 +69,13 @@ export function isHiddenParam(a: Action, p: Param): boolean {
 	if (p.name === 'everyFrame' && p.value.type === 'Bool' && p.value.value === false) return true;
 	// Empty strings only via a per-action whitelist (a blank string is meaningful for some actions).
 	if (isEmptyString(p.value) && HIDDEN_EMPTY_STRINGS.has(`${short(a.class)}.${p.name}`))
+		return true;
+	// Whitelisted numeric defaults (e.g. FloatCompare.tolerance = 0).
+	if (
+		p.value.type === 'Float' &&
+		p.value.value === 0 &&
+		HIDDEN_ZERO_FLOATS.has(`${short(a.class)}.${p.name}`)
+	)
 		return true;
 	// `FsmOwnerDefault` set to UseOwner (`Self`) is the implicit target — only a specified object is news.
 	if (p.value.type === 'Owner' && p.value.value === 'SelfOwner') return true;
