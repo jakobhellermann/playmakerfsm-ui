@@ -22,6 +22,8 @@ export function actionText(a: FsmModel['states'][number]['actions'][number]): st
 export interface Token {
 	text: string;
 	cls?: string;
+	/** hover text — used to reveal the elements behind a collapsed `[N elems]` list */
+	title?: string;
 }
 
 /**
@@ -38,7 +40,10 @@ export function actionTokens(a: Action): Token[] {
 	rest.forEach((p, j) => {
 		if (j > 0) toks.push({ text: ', ' });
 		if (p.name) toks.push({ text: `${p.name}=` });
-		toks.push({ text: fmtValue(p.value), cls: valueKind(p.value) || undefined });
+		// a collapsed `[N elems]` list keeps its elements as hover text
+		const title =
+			p.value.type === 'List' ? p.value.value.map((e) => fmtValue(e.value)).join(', ') : undefined;
+		toks.push({ text: fmtValue(p.value), cls: valueKind(p.value) || undefined, title });
 	});
 	toks.push({ text: ')' });
 	return toks;

@@ -39,7 +39,7 @@
 		{#each s.actions as a, i (i)}
 			{@const dead = a.enabled && isDeadAction(a)}
 			<div class="i2" class:off={!a.enabled || dead}>
-				{#each actionTokens(a) as t, k (k)}<span class={t.cls}>{t.text}</span
+				{#each actionTokens(a) as t, k (k)}<span class={t.cls} title={t.title}>{t.text}</span
 					>{/each}{#if !a.enabled}<span class="cmt">{' // disabled'}</span>{/if}
 			</div>
 		{/each}
