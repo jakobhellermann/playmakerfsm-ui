@@ -45,6 +45,8 @@
 		points: { x: number; y: number }[];
 		label: string;
 		global: boolean;
+		from: string;
+		to: string;
 		lx: number;
 		ly: number;
 	};
@@ -85,7 +87,7 @@
 		const edges: Edge[] = g.edges().map((e) => {
 			const d = g.edge(e) as { points: { x: number; y: number }[]; label: string; global: boolean };
 			const mid = d.points[Math.floor(d.points.length / 2)] ?? { x: 0, y: 0 };
-			return { points: d.points, label: d.label, global: d.global, lx: mid.x, ly: mid.y };
+			return { points: d.points, label: d.label, global: d.global, from: e.v, to: e.w, lx: mid.x, ly: mid.y };
 		});
 		const gl = g.graph();
 		return { nodes, edges, width: gl.width ?? 100, height: gl.height ?? 100 };
@@ -202,19 +204,38 @@
 				>
 					<path d="M0,0 L10,5 L0,10 z" fill="var(--var)" />
 				</marker>
+				<marker
+					id="arrowsel"
+					viewBox="0 0 10 10"
+					refX="9"
+					refY="5"
+					markerWidth="6"
+					markerHeight="6"
+					orient="auto-start-reverse"
+				>
+					<path d="M0,0 L10,5 L0,10 z" fill="var(--accent)" />
+				</marker>
 			</defs>
 
 			<g transform="translate({cur.tx} {cur.ty}) scale({cur.k})">
 				{#each layout.edges as e, i (i)}
+					{@const hot = selected != null && (e.from === selected || e.to === selected)}
 					<polyline
 						points={line(e.points)}
 						fill="none"
-						stroke={e.global ? 'var(--var)' : '#888'}
-						stroke-width="1.3"
-						marker-end="url(#{e.global ? 'arrowg' : 'arrow'})"
-						opacity="0.8"
+						stroke={hot ? 'var(--accent)' : e.global ? 'var(--var)' : '#888'}
+						stroke-width={hot ? 2.2 : 1.3}
+						marker-end="url(#{hot ? 'arrowsel' : e.global ? 'arrowg' : 'arrow'})"
+						opacity={selected == null ? 0.8 : hot ? 1 : 0.18}
 					/>
-					<text x={e.lx} y={e.ly - 3} class="elabel" text-anchor="middle">{e.label}</text>
+					<text
+						x={e.lx}
+						y={e.ly - 3}
+						class="elabel"
+						class:hot
+						text-anchor="middle"
+						opacity={selected == null || hot ? 1 : 0.2}>{e.label}</text
+					>
 				{/each}
 
 				{#each layout.nodes as n (n.id)}
@@ -457,5 +478,9 @@
 		paint-order: stroke;
 		stroke: var(--bg);
 		stroke-width: 3px;
+	}
+	.elabel.hot {
+		fill: var(--accent);
+		font-weight: 600;
 	}
 </style>
