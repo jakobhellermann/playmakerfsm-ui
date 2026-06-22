@@ -9,21 +9,21 @@
 	import PseudoView from '$lib/views/PseudoView.svelte';
 	import GraphView from '$lib/views/GraphView.svelte';
 
-	const game = $derived((page.params.game ?? 'hk') as Game);
+	const game = $derived((page.params.game ?? 'ss') as Game);
 	const hash = $derived(page.params.hash ?? '');
 
 	type Mode = 'raw' | 'pseudo' | 'graph';
 	const MODES: { id: Mode; label: string }[] = [
-		{ id: 'raw', label: 'raw' },
 		{ id: 'pseudo', label: 'pseudocode' },
-		{ id: 'graph', label: 'graph' }
+		{ id: 'graph', label: 'graph' },
+		{ id: 'raw', label: 'raw' }
 	];
 	const isMode = (s: string | null): s is Mode => s === 'raw' || s === 'pseudo' || s === 'graph';
 
 	// view mode is a global preference (localStorage) so it carries across FSMs; an explicit
 	// ?mode= in the URL overrides it (and becomes the new preference)
 	const STORAGE_KEY = 'fsm:view-mode';
-	let stored = $state<Mode>('raw');
+	let stored = $state<Mode>('pseudo');
 	if (browser && isMode(localStorage.getItem(STORAGE_KEY)))
 		stored = localStorage.getItem(STORAGE_KEY) as Mode;
 

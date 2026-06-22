@@ -16,7 +16,7 @@
 	import { isGroupOpen, setGroupOpen } from '$lib/openGroups';
 
 	// navigation state is the path (/[game]/[scene]); the filter stays a transient ?q= query
-	const game = $derived<Game>(isGame(page.params.game ?? null) ? (page.params.game as Game) : 'hk');
+	const game = $derived<Game>(isGame(page.params.game ?? null) ? (page.params.game as Game) : 'ss');
 	const scene = $derived(page.params.scene ?? null); // null = scenes view (SvelteKit decodes %2F)
 	const query = $derived(page.url.searchParams.get('q') ?? '');
 
@@ -120,13 +120,23 @@
 	const placeholder = $derived(
 		scene === null ? 'filter scenes & files…' : 'filter objects & FSMs…'
 	);
+
+	// focus the filter on mount so you can start typing right away
+	function focusOnMount(node: HTMLInputElement) {
+		node.focus();
+	}
 </script>
 
 {#snippet fsmLeaves(node: TreeNode)}
 	{#if node.fsms.length}
 		<ul class="fsms">
 			{#each sortedFsms(node) as f (f.pathId)}
-				<li><a href={fsmHref(f.hash)}>{f.name}</a></li>
+				<li>
+					<a href={fsmHref(f.hash)}>{f.name}</a>{#if f.name === 'Control'}<span
+							class="star"
+							title="main Control FSM">★</span
+						>{/if}
+				</li>
 			{/each}
 		</ul>
 	{/if}
@@ -207,13 +217,12 @@
 		{/if}
 	</nav>
 
-	<!-- svelte-ignore a11y_autofocus -->
 	<input
 		class="filter"
 		{placeholder}
 		value={query}
 		oninput={(e) => setQuery(e.currentTarget.value)}
-		autofocus
+		use:focusOnMount
 	/>
 </header>
 
@@ -408,6 +417,11 @@
 	}
 	.fsms a:hover {
 		text-decoration: underline;
+	}
+	.star {
+		color: var(--event);
+		font-size: 0.75rem;
+		margin-left: 0.3rem;
 	}
 	.msg {
 		padding: 1rem 1.25rem;
