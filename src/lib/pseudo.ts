@@ -32,7 +32,7 @@ export interface Token {
 export function actionTokens(a: Action): Token[] {
 	const toks: Token[] = [];
 	const store = storeParam(a);
-	const rest = a.params.filter((p) => p !== store && !isHiddenParam(p));
+	const rest = a.params.filter((p) => p !== store && !isHiddenParam(a, p));
 	if (store) toks.push({ text: fmtValue(store.value), cls: 'var' }, { text: ' = ' });
 	toks.push({ text: short(a.class), cls: 'act' }, { text: '(' });
 	rest.forEach((p, j) => {

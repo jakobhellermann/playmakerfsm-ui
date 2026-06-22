@@ -39,14 +39,23 @@ export function isDeadAction(a: Action): boolean {
 	return DEAD_RULES[short(a.class)]?.(a) ?? false;
 }
 
+/** `<short class>.<param>` pairs whose empty-string literal is just an unset default → hide it. */
+const HIDDEN_EMPTY_STRINGS = new Set(['Tk2dPlayAnimation.animLibName']);
+
+const isEmptyString = (v: ParamValue): boolean =>
+	v.type === 'FsmString' && v.value.kind === 'Literal' && v.value.value === '';
+
 /**
- * Params that are pure noise in the pseudo view because they sit at their PlayMaker default and carry
- * no information (these conventions hold across all actions, so the rule stays generic). Hidden from
- * the colourised view only — the canonical text form keeps every param.
+ * Params that are pure noise in the pseudo view because they sit at their default and carry no
+ * information. Hidden from the colourised view only — the canonical text form keeps every param.
  */
-export function isHiddenParam(p: Param): boolean {
+export function isHiddenParam(a: Action, p: Param): boolean {
 	// `everyFrame` defaults to false on every action's Reset(); `true` is the only informative value.
-	return p.name === 'everyFrame' && p.value.type === 'Bool' && p.value.value === false;
+	if (p.name === 'everyFrame' && p.value.type === 'Bool' && p.value.value === false) return true;
+	// Empty strings only via a per-action whitelist (a blank string is meaningful for some actions).
+	if (isEmptyString(p.value) && HIDDEN_EMPTY_STRINGS.has(`${short(a.class)}.${p.name}`))
+		return true;
+	return false;
 }
 
 /** The variable a param value is bound to, if any (across the different var-bearing encodings). */
