@@ -53,10 +53,6 @@
 {:else}
 	{@const m = modelQuery.data}
 	<div class="bar">
-		<div class="dim stats">
-			start=<span class="state">{m.start_state}</span> · {m.states.length} states · {m.events
-				.length} events · {m.variables.length} vars
-		</div>
 		<div class="modes">
 			{#each MODES as mo (mo.id)}
 				<button class:active={mode === mo.id} onclick={() => setMode(mo.id)}>{mo.label}</button>
@@ -75,9 +71,7 @@
 <style>
 	.bar {
 		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
+		justify-content: flex-end;
 		padding: 0.5rem 1.25rem;
 	}
 	.modes button {
@@ -96,12 +90,6 @@
 	.modes button.active {
 		border-color: var(--accent);
 		color: var(--accent);
-	}
-	.stats {
-		font-size: 0.85rem;
-	}
-	.state {
-		color: var(--state);
 	}
 	.msg {
 		padding: 1rem 1.25rem;
