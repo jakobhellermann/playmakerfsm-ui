@@ -46,6 +46,22 @@
 			.sort((a, b) => a.label.localeCompare(b.label));
 	});
 
+	// area = the scene-name prefix before the first underscore; only shown as quick-filter chips when
+	// it actually groups (true for Silksong's `abyss_05`, `bellway_…`; not for HK's `levelN`)
+	const areas = $derived.by(() => {
+		if (scene !== null) return [];
+		const files = new Set(entries.map((e) => e.file));
+		const by = new Map<string, number>();
+		for (const f of files) {
+			const a = sceneLabel(f).split('_')[0];
+			by.set(a, (by.get(a) ?? 0) + 1);
+		}
+		if (by.size < 2 || by.size > files.size * 0.7) return [];
+		return [...by.entries()]
+			.map(([area, count]) => ({ area, count }))
+			.sort((a, b) => a.area.localeCompare(b.area));
+	});
+
 	const gameObjects = $derived.by(() => {
 		if (scene === null) return [];
 		const by = new Map<string, number>();
@@ -107,6 +123,19 @@
 {:else if indexQuery.isError}
 	<p class="msg err">{String(indexQuery.error)}</p>
 {:else if scene === null}
+	{#if areas.length}
+		<div class="chips">
+			{#each areas as a (a.area)}
+				<button
+					class="chip"
+					class:active={query === a.area}
+					onclick={() => (query = query === a.area ? '' : a.area)}
+				>
+					{a.area} <span class="dim">{a.count}</span>
+				</button>
+			{/each}
+		</div>
+	{/if}
 	<div class="count dim">{scenes.length} scenes</div>
 	<ul class="grid">
 		{#each scenes as s (s.file)}
@@ -200,6 +229,25 @@
 	.count {
 		padding: 0.6rem 1.25rem 0;
 		font-size: 0.85rem;
+	}
+	.chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+		padding: 0.7rem 1.25rem 0;
+	}
+	.chip {
+		background: var(--panel);
+		color: var(--fg);
+		border: 1px solid #333;
+		border-radius: 999px;
+		padding: 0.15rem 0.6rem;
+		cursor: pointer;
+		font-size: 0.82rem;
+	}
+	.chip.active {
+		border-color: var(--accent);
+		color: var(--accent);
 	}
 	.grid {
 		list-style: none;
