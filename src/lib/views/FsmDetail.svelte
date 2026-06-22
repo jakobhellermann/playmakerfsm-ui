@@ -53,14 +53,14 @@
 {:else}
 	{@const m = modelQuery.data}
 	<div class="bar">
+		<div class="dim stats">
+			start=<span class="state">{m.start_state}</span> · {m.states.length} states · {m.events
+				.length} events · {m.variables.length} vars
+		</div>
 		<div class="modes">
 			{#each MODES as mo (mo.id)}
 				<button class:active={mode === mo.id} onclick={() => setMode(mo.id)}>{mo.label}</button>
 			{/each}
-		</div>
-		<div class="dim stats">
-			start=<span class="state">{m.start_state}</span> · {m.states.length} states · {m.events
-				.length} events · {m.variables.length} vars
 		</div>
 	</div>
 	{#if mode === 'pseudo'}
