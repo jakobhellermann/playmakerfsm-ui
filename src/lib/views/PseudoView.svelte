@@ -1,7 +1,6 @@
 <script lang="ts">
 	import type { FsmModel } from '$lib/model';
-	import { short } from '$lib/fmt';
-	import { args } from '$lib/pseudo';
+	import { actionTokens } from '$lib/pseudo';
 	import { isDeadAction } from '$lib/actions';
 
 	let { model }: { model: FsmModel } = $props();
@@ -24,8 +23,8 @@
 		{#each s.actions as a, i (i)}
 			{@const dead = a.enabled && isDeadAction(a)}
 			<div class="i2" class:off={!a.enabled || dead}>
-				<span class="act">{short(a.class)}</span>(<span class="args">{args(a.params)}</span
-				>){#if !a.enabled}<span class="cmt"> // disabled</span>{/if}
+				{#each actionTokens(a) as t, k (k)}<span class={t.cls}>{t.text}</span
+					>{/each}{#if !a.enabled}<span class="cmt"> // disabled</span>{/if}
 			</div>
 		{/each}
 		{#each s.transitions as t (t.event + t.to_state)}
@@ -72,14 +71,16 @@
 	.act {
 		color: var(--action);
 	}
-	.args {
-		color: var(--fg);
+	.var {
+		/* toned-down purple so variables sit behind the eye-catching state names */
+		color: #9d8fb5;
 	}
 	.event {
 		color: var(--event);
 	}
 	.state {
 		color: var(--state);
+		font-weight: 600;
 	}
 	.arrow,
 	.cmt {

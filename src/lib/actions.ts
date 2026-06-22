@@ -1,4 +1,4 @@
-import type { Action, ParamValue } from './model';
+import type { Action, Param, ParamValue } from './model';
 import { short } from './fmt';
 
 // Action-specific semantics live here, kept out of the generic fmt/pseudo rendering.
@@ -37,4 +37,32 @@ const DEAD_RULES: Record<string, (a: Action) => boolean> = {
 /** True when the action is enabled but, per its rule, has no observable effect. */
 export function isDeadAction(a: Action): boolean {
 	return DEAD_RULES[short(a.class)]?.(a) ?? false;
+}
+
+/** The variable a param value is bound to, if any (across the different var-bearing encodings). */
+function varName(v: ParamValue): string | null {
+	switch (v.type) {
+		case 'PackedVar':
+			return v.value;
+		case 'FsmString':
+			return v.value.kind === 'Var' ? v.value.value : null;
+		case 'Owner':
+		case 'GameObject':
+		case 'Object':
+			return typeof v.value === 'object' && 'Var' in v.value ? v.value.Var : null;
+		case 'Var':
+			return v.value.type === 'Var' ? v.value.value : null;
+		default:
+			return null;
+	}
+}
+
+/**
+ * The single output parameter an action writes into a variable, if any — PlayMaker's `store*` naming
+ * convention. Returns `undefined` for actions with zero or multiple such outputs (e.g. raycasts that
+ * store hit point/normal/distance at once), so those keep their plain `Action(args)` form.
+ */
+export function storeParam(a: Action): Param | undefined {
+	const stores = a.params.filter((p) => /^store/i.test(p.name) && varName(p.value) !== null);
+	return stores.length === 1 ? stores[0] : undefined;
 }

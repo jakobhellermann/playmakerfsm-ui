@@ -1,5 +1,6 @@
-import type { FsmModel, Param } from './model';
-import { fmtValue, short } from './fmt';
+import type { Action, FsmModel, Param } from './model';
+import { fmtValue, short, valueKind } from './fmt';
+import { storeParam } from './actions';
 
 /** compact one-line arg list for an action: `name=value, …` (unnamed params show just the value) */
 export function args(params: Param[]): string {
@@ -15,6 +16,32 @@ export function args(params: Param[]): string {
 export function actionText(a: FsmModel['states'][number]['actions'][number]): string {
 	const line = `${short(a.class)}(${args(a.params)})`;
 	return a.enabled ? line : `${line}  // disabled`;
+}
+
+/** A colorised fragment of an action line: `cls` is the css colour class (omitted = default text). */
+export interface Token {
+	text: string;
+	cls?: string;
+}
+
+/**
+ * Tokenised, colour-tagged form of an action line for the PseudoView. A single var-bound `store*`
+ * output is lifted into an assignment prefix (`var "x" = Action(…)`); variables and events carry
+ * their value colour. The plain-text `actionText` above stays the canonical (snapshot) form.
+ */
+export function actionTokens(a: Action): Token[] {
+	const toks: Token[] = [];
+	const store = storeParam(a);
+	const rest = store ? a.params.filter((p) => p !== store) : a.params;
+	if (store) toks.push({ text: fmtValue(store.value), cls: 'var' }, { text: ' = ' });
+	toks.push({ text: short(a.class), cls: 'act' }, { text: '(' });
+	rest.forEach((p, j) => {
+		if (j > 0) toks.push({ text: ', ' });
+		if (p.name) toks.push({ text: `${p.name}=` });
+		toks.push({ text: fmtValue(p.value), cls: valueKind(p.value) || undefined });
+	});
+	toks.push({ text: ')' });
+	return toks;
 }
 
 /**
