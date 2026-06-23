@@ -33,6 +33,13 @@
 
 	const ANY = '★ any state';
 
+	const CHAR = 7.3;
+	const ROW_H = 20;
+	const PAD_Y = 8;
+
+	// a state inside a chain node: its name + the event that transitions to the next state (empty on last)
+	type ChainState = { name: string; event: string };
+
 	type Node = {
 		id: string;
 		label: string;
@@ -42,6 +49,8 @@
 		h: number;
 		start: boolean;
 		any: boolean;
+		/** present when this node is a collapsed linear chain */
+		chain?: ChainState[];
 	};
 	type Edge = {
 		points: { x: number; y: number }[];
@@ -54,53 +63,124 @@
 	};
 
 	const layout = $derived.by(() => {
+		// ── chain detection ──
+		const outs = new Map<string, { event: string; to: string }[]>();
+		const ins = new Map<string, { event: string; from: string }[]>();
+		for (const s of model.states)
+			for (const t of s.transitions) {
+				(outs.get(s.name) ?? outs.set(s.name, []).get(s.name)!).push({
+					event: t.event,
+					to: t.to_state
+				});
+				(ins.get(t.to_state) ?? ins.set(t.to_state, []).get(t.to_state)!).push({
+					event: t.event,
+					from: s.name
+				});
+			}
+		const isChainLink = (from: string, to: string): boolean => {
+			if (from === to || from === ANY || to === ANY) return false;
+			const o = outs.get(from) ?? [];
+			const i = ins.get(to) ?? [];
+			return o.length === 1 && o[0].to === to && i.length === 1 && i[0].from === from;
+		};
+		const visited = new Set<string>();
+		const groups: { states: string[]; events: string[] }[] = [];
+		const startChain = (start: string) => {
+			if (visited.has(start)) return;
+			const states: string[] = [start];
+			const events: string[] = [];
+			visited.add(start);
+			let cur = start;
+			while (true) {
+				const o = outs.get(cur) ?? [];
+				if (o.length !== 1 || !isChainLink(cur, o[0].to)) break;
+				const next = o[0].to;
+				if (visited.has(next)) break;
+				events.push(o[0].event);
+				states.push(next);
+				visited.add(next);
+				cur = next;
+			}
+			groups.push({ states, events });
+		};
+		for (const s of model.states) {
+			const i = ins.get(s.name) ?? [];
+			if (i.length === 1 && isChainLink(i[0].from, s.name)) continue;
+			startChain(s.name);
+		}
+		for (const s of model.states) startChain(s.name);
+		if (model.global_transitions.length) groups.push({ states: [ANY], events: [] });
+		const groupOf = new Map<string, number>();
+		groups.forEach((grp, i) => grp.states.forEach((s) => groupOf.set(s, i)));
+
+		// ── dagre layout on groups (compact) + multigraph edge routing ──
 		const g = new dagre.graphlib.Graph({ multigraph: true });
 		g.setGraph({ rankdir: 'TB', nodesep: 28, ranksep: 46, marginx: 16, marginy: 16 });
 		g.setDefaultEdgeLabel(() => ({}));
-
-		const width = (s: string) => Math.max(54, s.length * 7.3 + 22);
-		for (const s of model.states)
-			g.setNode(s.name, { label: s.name, width: width(s.name), height: 30 });
-		if (model.global_transitions.length)
-			g.setNode(ANY, { label: ANY, width: width(ANY), height: 30 });
-
-		const addEdge = (from: string, t: { event: string; to_state: string }, global: boolean) => {
-			if (!g.hasNode(from) || !g.hasNode(t.to_state)) return;
-			g.setEdge(from, t.to_state, { label: t.event, global }, `${from}|${t.event}|${t.to_state}`);
+		const width = (s: string) => Math.max(54, s.length * CHAR + 22);
+		groups.forEach((grp, i) => {
+			const w = Math.max(54, ...grp.states.map((s) => s.length * CHAR + 22));
+			const h = grp.states.length === 1 ? 30 : grp.states.length * ROW_H + PAD_Y * 2;
+			g.setNode(String(i), { width: w, height: h });
+		});
+		const addEdge = (from: string, event: string, to: string, global: boolean) => {
+			const fg = groupOf.get(from);
+			const tg = groupOf.get(to);
+			if (fg == null || tg == null || fg === tg) return;
+			g.setEdge(String(fg), String(tg), { label: event, global }, `${from}|${event}|${to}`);
 		};
-		for (const s of model.states) for (const t of s.transitions) addEdge(s.name, t, false);
-		for (const t of model.global_transitions) addEdge(ANY, t, true);
-
+		for (const s of model.states)
+			for (const t of s.transitions) addEdge(s.name, t.event, t.to_state, false);
+		for (const t of model.global_transitions) addEdge(ANY, t.event, t.to_state, true);
 		dagre.layout(g);
 
-		const nodes: Node[] = g.nodes().map((id) => {
-			const n = g.node(id);
+		const nodes: Node[] = groups.map((grp, i) => {
+			const n = g.node(String(i));
+			const x = n.x - n.width / 2;
+			const y = n.y - n.height / 2;
 			return {
-				id,
-				label: n.label as string,
-				x: n.x - n.width / 2,
-				y: n.y - n.height / 2,
+				id: grp.states[0],
+				label: grp.states[0],
+				x,
+				y,
 				w: n.width,
 				h: n.height,
-				start: id === model.start_state,
-				any: id === ANY
+				start: grp.states[0] === model.start_state,
+				any: grp.states[0] === ANY,
+				chain:
+					grp.states.length > 1
+						? grp.states.map((s, j) => ({
+								name: s,
+								event: j < grp.events.length ? grp.events[j] : ''
+							}))
+						: undefined
 			};
 		});
+
 		const edges: Edge[] = g.edges().map((e) => {
 			const d = g.edge(e) as { points: { x: number; y: number }[]; label: string; global: boolean };
 			const mid = d.points[Math.floor(d.points.length / 2)] ?? { x: 0, y: 0 };
+			const fg = Number(e.v);
+			const tg = Number(e.w);
+			// first state of the source/target group — for hot-detection by state name
 			return {
 				points: d.points,
 				label: d.label,
 				global: d.global,
-				from: e.v,
-				to: e.w,
+				from: groups[fg].states[0],
+				to: groups[tg].states[0],
 				lx: mid.x,
 				ly: mid.y
 			};
 		});
+
 		const gl = g.graph();
-		return { nodes, edges, width: gl.width ?? 100, height: gl.height ?? 100 };
+		const edgeGroups: [Set<string>, Set<string>][] = edges.map((e) => {
+			const fg = groups.find((grp) => grp.states[0] === e.from)!;
+			const tg = groups.find((grp) => grp.states[0] === e.to)!;
+			return [new Set(fg.states), new Set(tg.states)];
+		});
+		return { nodes, edges, edgeGroups, width: gl.width ?? 100, height: gl.height ?? 100 };
 	});
 
 	const line = (pts: { x: number; y: number }[]) => pts.map((p) => `${p.x},${p.y}`).join(' ');
@@ -254,7 +334,9 @@
 
 			<g transform="translate({cur.tx} {cur.ty}) scale({cur.k})">
 				{#each layout.edges as e, i (i)}
-					{@const hot = selected != null && (e.from === selected || e.to === selected)}
+					{@const hot =
+						selected != null &&
+						(layout.edgeGroups[i][0].has(selected) || layout.edgeGroups[i][1].has(selected))}
 					<polyline
 						points={line(e.points)}
 						fill="none"
@@ -274,13 +356,7 @@
 				{/each}
 
 				{#each layout.nodes as n (n.id)}
-					<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-					<g
-						class:clickable={!n.any}
-						onclick={() => {
-							if (!n.any && !moved) select(n.id);
-						}}
-					>
+					<g>
 						<rect
 							x={n.x}
 							y={n.y}
@@ -290,11 +366,64 @@
 							class="node"
 							class:start={n.start}
 							class:any={n.any}
-							class:sel={selected === n.id}
+							class:sel={n.chain ? n.chain.some((s) => s.name === selected) : selected === n.id}
 						/>
-						<text x={n.x + n.w / 2} y={n.y + n.h / 2 + 4} text-anchor="middle" class="nlabel"
-							>{n.label}</text
-						>
+						{#if n.chain}
+							{#each n.chain as s, j (s.name)}
+								{#if j > 0}
+									<line
+										x1={n.x + 6}
+										y1={n.y + PAD_Y + j * ROW_H}
+										x2={n.x + n.w - 6}
+										y2={n.y + PAD_Y + j * ROW_H}
+										class="chain-divider"
+									/>
+								{/if}
+								<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+								<rect
+									x={n.x}
+									y={n.y + PAD_Y + j * ROW_H}
+									width={n.w}
+									height={ROW_H}
+									class="chain-slot"
+									class:sel={selected === s.name}
+									onclick={() => {
+										if (!moved) select(s.name);
+									}}
+								/>
+								<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+								<text
+									x={n.x + n.w / 2}
+									y={n.y + PAD_Y + j * ROW_H + 14}
+									text-anchor="middle"
+									class="nlabel"
+									class:sel={selected === s.name}
+									onclick={() => {
+										if (!moved) select(s.name);
+									}}>{s.name}</text
+								>
+								{#if s.event && s.event !== 'FINISHED' && j < n.chain.length - 1}
+									<text x={n.x + n.w + 4} y={n.y + PAD_Y + (j + 1) * ROW_H - 2} class="chain-arrow"
+										>↓</text
+									>
+									<text x={n.x + n.w + 14} y={n.y + PAD_Y + (j + 1) * ROW_H + 2} class="chain-event"
+										>{s.event}</text
+									>
+								{/if}
+							{/each}
+						{:else}
+							<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+							<text
+								x={n.x + n.w / 2}
+								y={n.y + n.h / 2 + 4}
+								text-anchor="middle"
+								class="nlabel"
+								class:clickable={!n.any}
+								onclick={() => {
+									if (!n.any && !moved) select(n.id);
+								}}>{n.label}</text
+							>
+						{/if}
 					</g>
 				{/each}
 			</g>
@@ -525,5 +654,33 @@
 	.elabel.hot {
 		fill: var(--accent);
 		font-weight: 600;
+	}
+	.chain-arrow {
+		fill: var(--dim);
+		font-family: ui-monospace, Menlo, monospace;
+		font-size: 10px;
+	}
+	.chain-event {
+		fill: var(--event);
+		font-family: ui-monospace, Menlo, monospace;
+		font-size: 10px;
+		opacity: 0.7;
+	}
+	.nlabel.sel {
+		fill: var(--accent);
+	}
+	.chain-divider {
+		stroke: #444;
+		stroke-width: 1;
+	}
+	.chain-slot {
+		fill: transparent;
+		cursor: pointer;
+	}
+	.chain-slot.sel {
+		fill: color-mix(in srgb, var(--accent) 15%, transparent);
+	}
+	.chain-slot:hover {
+		fill: color-mix(in srgb, var(--fg) 8%, transparent);
 	}
 </style>
