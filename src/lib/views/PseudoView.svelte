@@ -1,6 +1,6 @@
 <script lang="ts">
-	import type { FsmModel } from '$lib/model';
-	import { actionTokens } from '$lib/pseudo';
+	import type { FsmModel, State } from '$lib/model';
+	import { actionTokens, type Token } from '$lib/pseudo';
 	import { isDeadAction } from '$lib/actions';
 
 	let { model }: { model: FsmModel } = $props();
@@ -30,6 +30,14 @@
 		range.selectNodeContents(root);
 		sel.removeAllRanges();
 		sel.addRange(range);
+	}
+
+	/** resolve an event name to its target state (state transitions first, then global) */
+	function eventTarget(state: State, event: string): string | undefined {
+		return (
+			state.transitions.find((t) => t.event === event)?.to_state ??
+			model.global_transitions.find((t) => t.event === event)?.to_state
+		);
 	}
 </script>
 
@@ -72,8 +80,19 @@
 		{#each s.actions as a, i (i)}
 			{@const dead = a.enabled && isDeadAction(a)}
 			<div class="i2" class:off={!a.enabled || dead}>
-				{#each actionTokens(a) as t, k (k)}<span class={t.cls} title={t.title}>{t.text}</span
-					>{/each}{#if !a.enabled}<span class="cmt">{' // disabled'}</span>{/if}
+				{#each actionTokens(a) as t, k (k)}{#if t.event}{@const target = eventTarget(
+							s,
+							t.event
+						)}{#if target}<span
+								class="event link"
+								role="button"
+								tabindex="0"
+								onclick={() => goto(target)}
+								onkeydown={(e) => e.key === 'Enter' && goto(target)}>{t.text}</span
+							>{:else}<span class={t.cls} title={t.title}>{t.text}</span>{/if}{:else}<span
+							class={t.cls}
+							title={t.title}>{t.text}</span
+						>{/if}{/each}{#if !a.enabled}<span class="cmt">{' // disabled'}</span>{/if}
 			</div>
 		{/each}
 		{#each s.transitions as t (t.event + t.to_state)}

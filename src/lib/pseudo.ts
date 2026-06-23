@@ -24,6 +24,8 @@ export interface Token {
 	cls?: string;
 	/** hover text — used to reveal the elements behind a collapsed `[N elems]` list */
 	title?: string;
+	/** event name — when this token is an event value (→"CANCEL"), for click-to-navigate */
+	event?: string;
 }
 
 /**
@@ -36,7 +38,12 @@ export function actionTokens(a: Action): Token[] {
 		// a collapsed `[N elems]` list keeps its elements as hover text
 		const title =
 			p.value.type === 'List' ? p.value.value.map((e) => fmtValue(e.value)).join(', ') : undefined;
-		return { text: fmtValue(p.value), cls: valueKind(p.value) || undefined, title };
+		return {
+			text: fmtValue(p.value),
+			cls: valueKind(p.value) || undefined,
+			title,
+			event: p.value.type === 'Event' && p.value.value ? p.value.value : undefined
+		};
 	};
 	// small lists render inline (`[a, b]`, each element coloured); large ones stay collapsed.
 	const LIST_INLINE_MAX = 12;
