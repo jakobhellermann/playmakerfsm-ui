@@ -35,9 +35,16 @@
 
 	const match = (s: string) => s.toLowerCase().includes(query.trim().toLowerCase());
 	const byFile = (a: { file: string }, b: { file: string }) => coll.compare(a.file, b.file);
-	const sceneHref = (file: string) => `${base}/${game}/${encodeURIComponent(file)}`;
+	const sceneHref = (s: SceneRow) =>
+		`${base}/${game}/${encodeURIComponent(s.file)}${s.contentMatch ? `?q=${encodeURIComponent(query.trim())}` : ''}`;
 
-	type SceneRow = { file: string; name: string; count: number; named: boolean };
+	type SceneRow = {
+		file: string;
+		name: string;
+		count: number;
+		named: boolean;
+		contentMatch: boolean;
+	};
 	const scenes = $derived.by(() => {
 		const q = query.trim().toLowerCase();
 		const by = new Map<string, number>();
@@ -51,13 +58,16 @@
 		}
 		const rows: SceneRow[] = [...by.entries()].map(([file, count]) => {
 			const named = sceneNames.has(file);
-			return { file, count, named, name: named ? sceneNames.get(file)! : sceneLabel(file) };
+			const contentMatch = q.length > 0 && (searchText.get(file) ?? '').includes(q);
+			return {
+				file,
+				count,
+				named,
+				contentMatch,
+				name: named ? sceneNames.get(file)! : sceneLabel(file)
+			};
 		});
-		return rows
-			.filter(
-				(s) => match(s.name) || match(s.file) || (q && (searchText.get(s.file) ?? '').includes(q))
-			)
-			.sort(byFile);
+		return rows.filter((s) => match(s.name) || match(s.file) || s.contentMatch).sort(byFile);
 	});
 	const namedScenes = $derived(scenes.filter((s) => s.named));
 	const otherScenes = $derived(scenes.filter((s) => !s.named));
@@ -87,7 +97,7 @@
 						<ul class="sublist">
 							{#each g.items as s (s.file)}
 								<li>
-									<a class="rowlink" href={sceneHref(s.file)} title={s.file}>{s.name}</a>
+									<a class="rowlink" href={sceneHref(s)} title={s.file}>{s.name}</a>
 									<span class="dim badge">{s.count}</span>
 								</li>
 							{/each}
@@ -96,7 +106,7 @@
 				{:else}
 					{@const s = g.items[0]}
 					<span class="single">
-						<a class="rowlink" href={sceneHref(s.file)} title={s.file}>{s.name}</a>
+						<a class="rowlink" href={sceneHref(s)} title={s.file}>{s.name}</a>
 						<span class="dim badge">{s.count}</span>
 					</span>
 				{/if}
