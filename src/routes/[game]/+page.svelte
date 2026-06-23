@@ -19,6 +19,16 @@
 	);
 	const query = $derived(page.url.searchParams.get('q') ?? '');
 
+	// debounced query for filtering — lets the input render the typed char before the heavy
+	// scene computation runs. The URL updates immediately (for links/navigation); the filter
+	// waits a tick.
+	let debouncedQuery = $state('');
+	$effect(() => {
+		const q = query;
+		const id = setTimeout(() => (debouncedQuery = q), 0);
+		return () => clearTimeout(id);
+	});
+
 	const coll = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
 	const indexQuery = createQuery(() => ({
@@ -33,10 +43,10 @@
 	}));
 	const sceneNames = $derived(sceneNamesQuery.data ?? new Map<string, string>());
 
-	const match = (s: string) => s.toLowerCase().includes(query.trim().toLowerCase());
+	const match = (s: string) => s.toLowerCase().includes(debouncedQuery.trim().toLowerCase());
 	const byFile = (a: { file: string }, b: { file: string }) => coll.compare(a.file, b.file);
 	const sceneHref = (s: SceneRow) =>
-		`${base}/${game}/${encodeURIComponent(s.file)}${s.contentMatch ? `?q=${encodeURIComponent(query.trim())}` : ''}`;
+		`${base}/${game}/${encodeURIComponent(s.file)}${s.contentMatch ? `?q=${encodeURIComponent(debouncedQuery.trim())}` : ''}`;
 
 	type SceneRow = {
 		file: string;
@@ -46,7 +56,7 @@
 		contentMatch: boolean;
 	};
 	const scenes = $derived.by(() => {
-		const q = query.trim().toLowerCase();
+		const q = debouncedQuery.trim().toLowerCase();
 		const by = new Map<string, number>();
 		const searchText = new Map<string, string>();
 		for (const e of entries) {
@@ -88,9 +98,9 @@
 			<li>
 				{#if g.group}
 					<details
-						open={isGroupOpen(key) || !!query}
+						open={isGroupOpen(key) || debouncedQuery !== ''}
 						ontoggle={(e) => {
-							if (!query) setGroupOpen(key, e.currentTarget.open);
+							if (!debouncedQuery) setGroupOpen(key, e.currentTarget.open);
 						}}
 					>
 						<summary>{g.prefix} <span class="dim badge">{g.items.length}</span></summary>
