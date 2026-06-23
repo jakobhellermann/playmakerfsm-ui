@@ -75,7 +75,7 @@
 
 <style>
 	h2 {
-		font-size: 0.85rem;
+		font-size: 0.9rem;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		color: var(--dim);

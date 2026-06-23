@@ -117,7 +117,7 @@
 		text-decoration: none;
 	}
 	h1 {
-		font-size: 1.05rem;
+		font-size: 1.1rem;
 		margin: 0;
 	}
 	.gamebtn {
@@ -139,7 +139,7 @@
 		align-items: center;
 		gap: 0.4rem;
 		font-family: ui-monospace, Menlo, monospace;
-		font-size: 0.9rem;
+		font-size: 0.95rem;
 		flex-wrap: wrap;
 	}
 	.crumb {

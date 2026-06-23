@@ -111,8 +111,8 @@
 	.code {
 		padding: 1rem 1.25rem 3rem;
 		font-family: ui-monospace, Menlo, monospace;
-		font-size: 13px;
-		line-height: 1.6;
+		font-size: 14px;
+		line-height: 1.65;
 	}
 	.code > div {
 		white-space: pre-wrap;

@@ -130,7 +130,7 @@
 <style>
 	.count {
 		padding: 0.6rem 1.25rem 0;
-		font-size: 0.85rem;
+		font-size: 0.9rem;
 	}
 	.treewrap {
 		padding: 0.4rem 1.25rem 2rem;
@@ -172,11 +172,11 @@
 	}
 	.star {
 		color: var(--event);
-		font-size: 0.75rem;
+		font-size: 0.8rem;
 		margin-left: 0.3rem;
 	}
 	.badge {
-		font-size: 0.75rem;
+		font-size: 0.8rem;
 		flex-shrink: 0;
 	}
 	.msg {

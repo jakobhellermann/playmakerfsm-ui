@@ -444,8 +444,8 @@
 		overflow: auto;
 		padding: 0.8rem 1rem 2rem;
 		font-family: ui-monospace, Menlo, monospace;
-		font-size: 13px;
-		line-height: 1.6;
+		font-size: 14px;
+		line-height: 1.65;
 	}
 	.code .line {
 		white-space: pre-wrap;
@@ -512,12 +512,12 @@
 	.nlabel {
 		fill: var(--state);
 		font-family: ui-monospace, Menlo, monospace;
-		font-size: 12px;
+		font-size: 13px;
 	}
 	.elabel {
 		fill: var(--event);
 		font-family: ui-monospace, Menlo, monospace;
-		font-size: 10px;
+		font-size: 11px;
 		paint-order: stroke;
 		stroke: var(--bg);
 		stroke-width: 3px;
