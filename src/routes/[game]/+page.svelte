@@ -12,6 +12,7 @@
 		type Game
 	} from '$lib/data';
 	import { groupNamedScenes, groupOtherFiles, type SceneGroup } from '$lib/scenes';
+	import { untrack } from 'svelte';
 	import { isGroupOpen, setGroupOpen } from '$lib/openGroups';
 
 	const game = $derived<Game>(
@@ -22,7 +23,7 @@
 	// debounced query for filtering — lets the input render the typed char before the heavy
 	// scene computation runs. The URL updates immediately (for links/navigation); the filter
 	// waits a tick.
-	let debouncedQuery = $state('');
+	let debouncedQuery = $state(untrack(() => query));
 	$effect(() => {
 		const q = query;
 		const id = setTimeout(() => (debouncedQuery = q), 0);
