@@ -109,7 +109,7 @@
 			startChain(s.name);
 		}
 		for (const s of model.states) startChain(s.name);
-		if (model.global_transitions.length) groups.push({ states: [ANY], events: [] });
+		// no ANY node — global transitions render as incoming arrows above their target
 		const groupOf = new Map<string, number>();
 		groups.forEach((grp, i) => grp.states.forEach((s) => groupOf.set(s, i)));
 
@@ -131,7 +131,7 @@
 		};
 		for (const s of model.states)
 			for (const t of s.transitions) addEdge(s.name, t.event, t.to_state, false);
-		for (const t of model.global_transitions) addEdge(ANY, t.event, t.to_state, true);
+
 		dagre.layout(g);
 
 		const nodes: Node[] = groups.map((grp, i) => {
@@ -146,7 +146,7 @@
 				w: n.width,
 				h: n.height,
 				start: grp.states[0] === model.start_state,
-				any: grp.states[0] === ANY,
+				any: false,
 				chain:
 					grp.states.length > 1
 						? grp.states.map((s, j) => ({
@@ -162,7 +162,6 @@
 			const mid = d.points[Math.floor(d.points.length / 2)] ?? { x: 0, y: 0 };
 			const fg = Number(e.v);
 			const tg = Number(e.w);
-			// first state of the source/target group — for hot-detection by state name
 			return {
 				points: d.points,
 				label: d.label,
@@ -174,11 +173,47 @@
 			};
 		});
 
+		// global transitions: short incoming arrows above each target, spread horizontally when multiple
+		const nodeById = new Map(nodes.map((n) => [n.id, n]));
+		const globalsByTarget = new Map<string, { event: string }[]>();
+		for (const t of model.global_transitions) {
+			(
+				globalsByTarget.get(t.to_state) ?? globalsByTarget.set(t.to_state, []).get(t.to_state)!
+			).push({ event: t.event });
+		}
+		for (const [targetName, gtrans] of globalsByTarget) {
+			// find the node whose group contains this target state
+			const targetGroup = groupOf.get(targetName);
+			if (targetGroup == null) continue;
+			const target = nodes[targetGroup];
+			if (!target) continue;
+			const n = gtrans.length;
+			gtrans.forEach((gt, j) => {
+				const cx = target.x + (target.w * (j + 1)) / (n + 1);
+				const yOff = 28 + (n - 1 - j) * 22; // stagger: first global highest, last lowest
+				edges.push({
+					points: [
+						{ x: cx, y: target.y - yOff },
+						{ x: cx, y: target.y }
+					],
+					label: '★ ' + gt.event,
+					global: true,
+					from: ANY,
+					to: target.id,
+					lx: cx,
+					ly: target.y - yOff + 12
+				});
+			});
+		}
+
 		const gl = g.graph();
 		const edgeGroups: [Set<string>, Set<string>][] = edges.map((e) => {
-			const fg = groups.find((grp) => grp.states[0] === e.from)!;
-			const tg = groups.find((grp) => grp.states[0] === e.to)!;
-			return [new Set(fg.states), new Set(tg.states)];
+			const fg =
+				e.from === ANY
+					? new Set<string>()
+					: new Set(groups.find((grp) => grp.states[0] === e.from)?.states ?? []);
+			const tg = new Set(groups.find((grp) => grp.states[0] === e.to)?.states ?? []);
+			return [fg, tg];
 		});
 		return { nodes, edges, edgeGroups, width: gl.width ?? 100, height: gl.height ?? 100 };
 	});
