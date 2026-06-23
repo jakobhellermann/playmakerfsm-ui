@@ -39,13 +39,25 @@
 
 	type SceneRow = { file: string; name: string; count: number; named: boolean };
 	const scenes = $derived.by(() => {
+		const q = query.trim().toLowerCase();
 		const by = new Map<string, number>();
-		for (const e of entries) by.set(e.file, (by.get(e.file) ?? 0) + 1);
+		const searchText = new Map<string, string>();
+		for (const e of entries) {
+			by.set(e.file, (by.get(e.file) ?? 0) + 1);
+			if (q) {
+				const s = (e.name + ' ' + e.game_object).toLowerCase();
+				searchText.set(e.file, (searchText.get(e.file) ?? '') + ' ' + s);
+			}
+		}
 		const rows: SceneRow[] = [...by.entries()].map(([file, count]) => {
 			const named = sceneNames.has(file);
 			return { file, count, named, name: named ? sceneNames.get(file)! : sceneLabel(file) };
 		});
-		return rows.filter((s) => match(s.name) || match(s.file)).sort(byFile);
+		return rows
+			.filter(
+				(s) => match(s.name) || match(s.file) || (q && (searchText.get(s.file) ?? '').includes(q))
+			)
+			.sort(byFile);
 	});
 	const namedScenes = $derived(scenes.filter((s) => s.named));
 	const otherScenes = $derived(scenes.filter((s) => !s.named));
