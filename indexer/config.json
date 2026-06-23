@@ -1,0 +1,14 @@
+{
+	"games": [
+		{
+			"slug": "hk",
+			"label": "Hollow Knight",
+			"path": "~/.steamapps/Hollow Knight"
+		},
+		{
+			"slug": "ss",
+			"label": "Silksong",
+			"path": "~/.steamapps/Hollow Knight Silksong"
+		}
+	]
+}

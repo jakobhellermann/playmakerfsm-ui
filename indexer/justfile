@@ -1,0 +1,7 @@
+default: index
+
+index:
+	cargo run --release --quiet
+
+clean:
+	rm -rf static/data/hk static/data/ss
