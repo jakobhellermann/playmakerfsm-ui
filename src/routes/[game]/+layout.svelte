@@ -50,6 +50,16 @@
 	});
 </script>
 
+<svelte:head>
+	<title>
+		{isDetail
+			? `${fsmCrumb} — ${sceneTitle(scene ?? '')}`
+			: scene
+				? `${sceneTitle(scene)}`
+				: `FSMs — ${gameLabel}`}
+	</title>
+</svelte:head>
+
 <header>
 	<div class="topline">
 		<a class="home" href="{base}/{game}"><h1>PlayMaker FSM browser</h1></a>
