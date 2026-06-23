@@ -44,7 +44,12 @@
 	}));
 	const sceneNames = $derived(sceneNamesQuery.data ?? new Map<string, string>());
 
-	const match = (s: string) => s.toLowerCase().includes(debouncedQuery.trim().toLowerCase());
+	const terms = $derived(debouncedQuery.trim().toLowerCase().split(/\s+/));
+	const match = (s: string) => {
+		if (!terms[0]) return true;
+		const lower = s.toLowerCase();
+		return terms.every((t) => lower.includes(t));
+	};
 	const byFile = (a: { file: string }, b: { file: string }) => coll.compare(a.file, b.file);
 	const sceneHref = (s: SceneRow) =>
 		`${base}/${game}/${encodeURIComponent(s.file)}${s.contentMatch ? `?q=${encodeURIComponent(debouncedQuery.trim())}` : ''}`;
@@ -57,7 +62,7 @@
 		contentMatch: boolean;
 	};
 	const scenes = $derived.by(() => {
-		const q = debouncedQuery.trim().toLowerCase();
+		const q = terms[0];
 		const by = new Map<string, number>();
 		const searchText = new Map<string, string>();
 		for (const e of entries) {
@@ -69,7 +74,8 @@
 		}
 		const rows: SceneRow[] = [...by.entries()].map(([file, count]) => {
 			const named = sceneNames.has(file);
-			const contentMatch = q.length > 0 && (searchText.get(file) ?? '').includes(q);
+			const contentMatch =
+				q.length > 0 && terms.every((t) => (searchText.get(file) ?? '').includes(t));
 			return {
 				file,
 				count,
