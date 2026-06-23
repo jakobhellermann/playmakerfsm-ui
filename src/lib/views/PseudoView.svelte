@@ -6,12 +6,18 @@
 	let { model }: { model: FsmModel } = $props();
 
 	let root = $state<HTMLElement>();
+	let flash = $state<string | null>(null);
 
 	/** scroll to a state's `state X {` definition block (goto-definition) */
 	function goto(name: string) {
-		root
-			?.querySelector(`[data-state="${CSS.escape(name)}"]`)
-			?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		const el = root?.querySelector(`[data-state="${CSS.escape(name)}"]`);
+		if (el instanceof HTMLElement) {
+			el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			flash = name;
+			setTimeout(() => {
+				if (flash === name) flash = null;
+			}, 1500);
+		}
 	}
 
 	/** Ctrl+A inside the code block selects only the code, not the whole page */
@@ -59,7 +65,7 @@
 
 	{#each model.states as s (s.name)}
 		<div class="blank"></div>
-		<div class="i1" data-state={s.name}>
+		<div class="i1" data-state={s.name} class:flash={flash === s.name}>
 			<span class="kw">state</span> <span class="state">{s.name}</span>
 			{'{'}
 		</div>
@@ -140,5 +146,17 @@
 	}
 	.off {
 		opacity: 0.55;
+	}
+	@keyframes flash {
+		0% {
+			background: color-mix(in srgb, var(--state) 30%, transparent);
+		}
+		100% {
+			background: transparent;
+		}
+	}
+	.flash {
+		animation: flash 1.5s ease-out;
+		border-radius: 2px;
 	}
 </style>
