@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { base } from '$app/paths';
-	import { afterNavigate, goto } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { GAMES, DEFAULT_GAME, fetchSceneNames, isGame, sceneLabel, type Game } from '$lib/data';
@@ -42,12 +42,6 @@
 			replaceState: true
 		});
 	}
-
-	// focus the filter on arrival; afterNavigate runs after SvelteKit's own focus handling
-	let filterEl = $state<HTMLInputElement>();
-	afterNavigate(() => {
-		if (filterEl && document.activeElement !== filterEl) filterEl.focus();
-	});
 </script>
 
 <svelte:head>
@@ -95,7 +89,6 @@
 				{placeholder}
 				value={query}
 				oninput={(e) => setQuery(e.currentTarget.value)}
-				bind:this={filterEl}
 			/>
 			{#if query}
 				<button class="clear" onclick={() => setQuery('')} aria-label="clear filter">✕</button>
