@@ -77,10 +77,10 @@ pub fn scan_game(steam_path: &str, out_dir: &Path) -> Result<ScanResult> {
 			let Ok(pm) = mb.cast::<PlayMakerFSM>().read() else {
 				continue;
 			};
-			let stub = pm.fsmTemplate.m_PathID != 0
-				&& matches!(pm.fsm.states.as_slice(), [s]
-					if s.actionData.actionNames.is_empty() && s.transitions.is_empty());
-			let template = stub
+			// If the component references a template, the template's FSM *is* the runtime FSM —
+			// PlayMakerFSM.InitTemplate() replaces the component FSM entirely, keeping only the
+			// component's variables and name. Always resolve when the PPtr is set.
+			let template = (pm.fsmTemplate.m_PathID != 0)
 				.then(|| handle.deref_read::<FsmTemplate>(pm.fsmTemplate).ok())
 				.flatten();
 			let mut model = decode_fsm(template.as_ref().map_or(&pm.fsm, |t| &t.fsm), &mut ctx);
