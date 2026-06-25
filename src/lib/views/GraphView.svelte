@@ -3,6 +3,7 @@
 
 	// bottom pseudocode panel height is drag-resizable and persisted in localStorage
 	const SIDEBAR_KEY = 'fsm:graph-panel-h';
+	const CFG_KEY = 'fsm:graph-layout-cfg';
 	let panelHeight = $state((browser && Number(localStorage.getItem(SIDEBAR_KEY))) || 320);
 </script>
 
@@ -17,6 +18,24 @@
 
 	// `modeTabs` lets the detail view drop its mode switcher into the toolbar (same row as +/−/fit)
 	let { model, modeTabs }: { model: FsmModel; modeTabs?: Snippet } = $props();
+
+	type RankDir = 'TB' | 'BT' | 'LR' | 'RL';
+	type Ranker = 'network-simplex' | 'tight-tree' | 'longest-path';
+	const defaultCfg: { rankdir: RankDir; ranker: Ranker; nodesep: number; ranksep: number } = {
+		rankdir: 'TB',
+		ranker: 'network-simplex',
+		nodesep: 28,
+		ranksep: 46
+	};
+	let layoutCfg = $state<{ rankdir: RankDir; ranker: Ranker; nodesep: number; ranksep: number }>(
+		browser && localStorage.getItem(CFG_KEY)
+			? { ...defaultCfg, ...JSON.parse(localStorage.getItem(CFG_KEY)!) }
+			: { ...defaultCfg }
+	);
+	let showCfg = $state(false);
+	$effect(() => {
+		if (browser) localStorage.setItem(CFG_KEY, JSON.stringify(layoutCfg));
+	});
 
 	// the selected state lives in the URL (?state=) so it survives reload and is shareable; its
 	// pseudocode shows in the sidebar
@@ -115,7 +134,14 @@
 
 		// ── dagre layout on groups (compact) + multigraph edge routing ──
 		const g = new dagre.graphlib.Graph({ multigraph: true });
-		g.setGraph({ rankdir: 'TB', nodesep: 28, ranksep: 46, marginx: 16, marginy: 16 });
+		g.setGraph({
+			rankdir: layoutCfg.rankdir,
+			ranker: layoutCfg.ranker,
+			nodesep: layoutCfg.nodesep,
+			ranksep: layoutCfg.ranksep,
+			marginx: 16,
+			marginy: 16
+		});
 		g.setDefaultEdgeLabel(() => ({}));
 		const width = (s: string) => Math.max(54, s.length * CHAR + 22);
 		groups.forEach((grp, i) => {
@@ -308,6 +334,7 @@
 	<button onclick={() => zoomAround(cw / 2, ch / 2, 1.25)}>+</button>
 	<button onclick={() => zoomAround(cw / 2, ch / 2, 0.8)}>−</button>
 	<button onclick={() => (view = { ...fit })}>fit</button>
+	<button class="cfg-btn" class:active={showCfg} onclick={() => (showCfg = !showCfg)}>⚙</button>
 	<span class="dim"
 		>{model.states.length} states · {Math.round(cur.k * 100)}% · drag to pan, scroll to zoom</span
 	>
@@ -316,6 +343,47 @@
 		{@render modeTabs()}
 	{/if}
 </div>
+
+{#if showCfg}
+	<div class="cfg-panel">
+		<label>
+			<span>direction</span>
+			<div class="seg">
+				{#each ['TB', 'BT', 'LR', 'RL'] as d}
+					<button
+						class:active={layoutCfg.rankdir === d}
+						onclick={() => (layoutCfg.rankdir = d as RankDir)}>{d}</button
+					>
+				{/each}
+			</div>
+		</label>
+		<label>
+			<span>ranker</span>
+			<div class="seg">
+				{#each ['network-simplex', 'tight-tree', 'longest-path'] as r}
+					<button
+						class:active={layoutCfg.ranker === r}
+						onclick={() => (layoutCfg.ranker = r as Ranker)}
+						>{r === 'network-simplex'
+							? 'simplex'
+							: r === 'tight-tree'
+								? 'tight'
+								: 'longest'}</button
+					>
+				{/each}
+			</div>
+		</label>
+		<label>
+			<span>node sep ({layoutCfg.nodesep})</span>
+			<input type="range" min="8" max="80" bind:value={layoutCfg.nodesep} />
+		</label>
+		<label>
+			<span>rank sep ({layoutCfg.ranksep})</span>
+			<input type="range" min="16" max="120" bind:value={layoutCfg.ranksep} />
+		</label>
+		<button class="cfg-reset" onclick={() => (layoutCfg = { ...defaultCfg })}>reset</button>
+	</div>
+{/if}
 
 <div class="body" bind:this={bodyEl} style="height: calc(100dvh - {bodyTop}px)">
 	<!-- drag/wheel are mouse-only enhancements -->
@@ -533,6 +601,69 @@
 	.toolbar button:last-of-type {
 		width: auto;
 		padding: 0 0.5rem;
+	}
+	.cfg-btn {
+		font-size: 1.1rem;
+		line-height: 1;
+	}
+	.cfg-btn.active {
+		background: var(--accent);
+		color: var(--bg);
+		border-color: var(--accent);
+	}
+	.cfg-panel {
+		display: flex;
+		gap: 1.2rem;
+		padding: 0.5rem var(--pad-x);
+		border-bottom: 1px solid #333;
+		background: var(--panel);
+		flex-wrap: wrap;
+	}
+	.cfg-panel label {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		font-size: 0.8rem;
+		color: var(--dim);
+	}
+	.cfg-panel .seg {
+		display: flex;
+		gap: 2px;
+	}
+	.cfg-panel .seg button {
+		background: var(--bg);
+		color: var(--fg);
+		border: 1px solid #333;
+		border-radius: 3px;
+		padding: 2px 8px;
+		font-size: 0.75rem;
+		cursor: pointer;
+		width: auto;
+		height: auto;
+	}
+	.cfg-panel .seg button.active {
+		background: var(--accent);
+		color: var(--bg);
+		border-color: var(--accent);
+	}
+	.cfg-panel input[type='range'] {
+		width: 100px;
+		accent-color: var(--accent);
+	}
+	.cfg-reset {
+		align-self: flex-end;
+		background: var(--bg);
+		color: var(--fg);
+		border: 1px solid #333;
+		border-radius: 3px;
+		padding: 2px 8px;
+		font-size: 0.75rem;
+		cursor: pointer;
+		width: auto;
+		height: auto;
+	}
+	.cfg-reset:hover {
+		border-color: var(--accent);
 	}
 	.toolbar .dim {
 		margin-left: 0.5rem;
