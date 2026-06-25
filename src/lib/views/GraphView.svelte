@@ -78,7 +78,7 @@
 				});
 			}
 		const isChainLink = (from: string, to: string): boolean => {
-			if (from === to || from === ANY || to === ANY) return false;
+			if (!to || from === to || from === ANY || to === ANY) return false;
 			const o = outs.get(from) ?? [];
 			const i = ins.get(to) ?? [];
 			return o.length === 1 && o[0].to === to && i.length === 1 && i[0].from === from;
@@ -485,7 +485,11 @@
 					<div class="line">
 						<span class="kw">on</span> <span class="event">{t.event}</span>
 						<span class="arrow">→</span>
-						<button class="state link" onclick={() => select(t.to_state)}>{t.to_state}</button>
+						{#if t.to_state}
+							<button class="state link" onclick={() => select(t.to_state)}>{t.to_state}</button>
+						{:else}
+							<span class="cmt">(none)</span>
+						{/if}
 					</div>
 				{/each}
 				{#if !selectedState.actions.length && !selectedState.transitions.length}

@@ -42,13 +42,17 @@
 </script>
 
 {#snippet stateRef(name: string)}
-	<span
-		class="state link"
-		role="button"
-		tabindex="0"
-		onclick={() => goto(name)}
-		onkeydown={(e) => e.key === 'Enter' && goto(name)}>{name}</span
-	>
+	{#if name}
+		<span
+			class="state link"
+			role="button"
+			tabindex="0"
+			onclick={() => goto(name)}
+			onkeydown={(e) => e.key === 'Enter' && goto(name)}>{name}</span
+		>
+	{:else}
+		<span class="cmt">(none)</span>
+	{/if}
 {/snippet}
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
