@@ -454,7 +454,8 @@
 						class="elabel"
 						class:hot
 						text-anchor="middle"
-						opacity={selected == null || hot ? 1 : 0.2}>{e.label}</text
+						opacity={selected == null || hot ? 1 : 0.2}
+						>{e.label === 'FINISHED' ? '' : e.label}</text
 					>
 				{/each}
 
