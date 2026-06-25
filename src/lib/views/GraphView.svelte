@@ -19,7 +19,7 @@
 	// `modeTabs` lets the detail view drop its mode switcher into the toolbar (same row as +/−/fit)
 	let { model, modeTabs }: { model: FsmModel; modeTabs?: Snippet } = $props();
 
-	type RankDir = 'TB' | 'BT' | 'LR' | 'RL';
+	type RankDir = 'TB' | 'LR';
 	type Ranker = 'network-simplex' | 'tight-tree' | 'longest-path';
 	// edge style: `routed` = dagre routes the edges and labels them at the midpoint; `side`/`bottom` =
 	// out-transitions are labelled ports on the state, edges leaving from the side resp. the bottom edge
@@ -97,6 +97,7 @@
 		global: boolean;
 		// port-based state transitions (side/bottom):
 		down?: boolean;
+		bow?: number; // side mode: horizontal direction the curve leaves the port (matches the port side)
 		sx?: number;
 		sy?: number;
 		tx?: number;
@@ -312,8 +313,8 @@
 					// y) that's nearer the target
 					for (const { r, target } of valid) {
 						const tgtCx = cx(target);
+						const right = tgtCx >= n.x + n.w / 2;
 						if (!r.down) {
-							const right = tgtCx >= n.x + n.w / 2;
 							r.px = right ? n.x + n.w : n.x;
 							r.py = r.ty;
 						}
@@ -322,6 +323,9 @@
 							to: target.id,
 							global: n.any,
 							down: r.down,
+							// leave the port toward its own side, so a right-edge port visibly exits rightward
+							// even when the target sits almost straight below (tx barely past the node centre)
+							bow: right ? 50 : -50,
 							sx: r.px,
 							sy: r.py,
 							tx: tgtCx,
@@ -383,7 +387,7 @@
 	const edgePath = (e: Edge) => {
 		if (layoutCfg.edgeStyle === 'bottom' || e.down)
 			return `M ${e.sx!} ${e.sy!} C ${e.sx!} ${e.sy! + 40}, ${e.tx!} ${e.ty! - 40}, ${e.tx!} ${e.ty!}`;
-		const dx = e.tx! < e.sx! ? -50 : 50;
+		const dx = e.bow ?? (e.tx! < e.sx! ? -50 : 50);
 		return `M ${e.sx!} ${e.sy!} C ${e.sx! + dx} ${e.sy!}, ${e.tx!} ${e.ty! - 50}, ${e.tx!} ${e.ty!}`;
 	};
 
@@ -515,7 +519,7 @@
 		<label>
 			<span>direction</span>
 			<div class="seg">
-				{#each ['TB', 'BT', 'LR', 'RL'] as d}
+				{#each ['TB', 'LR'] as d}
 					<button
 						class:active={layoutCfg.rankdir === d}
 						onclick={() => (layoutCfg.rankdir = d as RankDir)}>{d}</button
