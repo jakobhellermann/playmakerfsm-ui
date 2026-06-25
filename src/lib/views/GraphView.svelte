@@ -289,6 +289,8 @@
 			}
 		} else {
 			const cx = (m: Node) => m.x + m.w / 2;
+			const byId = new Map(nodes.map((n) => [n.id, n]));
+			const srcRow = new Map<Edge, Row>(); // bottom mode: edge → its source row (to re-place the port)
 			for (const n of nodes) {
 				const valid = n.rows
 					.map((r) => ({ r, target: nodes[groupOf.get(r.to)!] }))
@@ -299,22 +301,22 @@
 					// group spreads left→right by target x so its edges fan out without crossing.
 					const isUp = (o: { target: Node }) => o.target.y + o.target.h <= n.y + n.h;
 					const place = (arr: { r: Row; target: Node }[], py: number, up: boolean) => {
-						arr.sort((a, b) => cx(a.target) - cx(b.target));
-						arr.forEach((o, j) => {
-							o.r.px = n.x + (n.w * (j + 1)) / (arr.length + 1);
+						for (const o of arr) {
 							o.r.py = py;
-							edges.push({
+							const e: Edge = {
 								from: n.id,
 								to: o.target.id,
 								global: n.any,
 								up,
 								topPort: up,
 								sx: o.r.px,
-								sy: o.r.py,
+								sy: py,
 								tx: cx(o.target),
 								ty: up ? o.target.y + o.target.h : o.target.y
-							});
-						});
+							};
+							edges.push(e);
+							srcRow.set(e, o.r);
+						}
 					};
 					place(
 						valid.filter((o) => !isUp(o)),
@@ -348,6 +350,50 @@
 							ty: up ? target.y + target.h : target.y
 						});
 					}
+				}
+			}
+
+			// re-pack each node's top and bottom edges: outgoing ports and incoming dock points share the
+			// same physical edge, so give them distinct slots (ordered by the other end's x) instead of both
+			// gravitating to the centre — otherwise an out-port starts exactly where an in-edge lands
+			if (style === 'bottom') {
+				const portEdges = edges.filter((e) => srcRow.has(e));
+				for (const n of nodes) {
+					const repack = (items: { e: Edge; out: boolean }[], py: number) => {
+						items.sort((a, b) => {
+							const ka = a.out ? byId.get(a.e.to)! : byId.get(a.e.from)!;
+							const kb = b.out ? byId.get(b.e.to)! : byId.get(b.e.from)!;
+							return cx(ka) - cx(kb);
+						});
+						items.forEach((it, k) => {
+							const x = n.x + (n.w * (k + 1)) / (items.length + 1);
+							if (it.out) {
+								it.e.sx = x;
+								srcRow.get(it.e)!.px = x;
+								srcRow.get(it.e)!.py = py;
+							} else {
+								it.e.tx = x;
+							}
+						});
+					};
+					const out = portEdges.filter((e) => e.from === n.id);
+					const inc = portEdges.filter((e) => e.to === n.id);
+					// bottom edge: out-edges leaving downward + in-edges arriving from below
+					repack(
+						[
+							...out.filter((e) => !e.topPort).map((e) => ({ e, out: true })),
+							...inc.filter((e) => e.up).map((e) => ({ e, out: false }))
+						],
+						n.y + n.h
+					);
+					// top edge: out-edges leaving upward + in-edges arriving from above
+					repack(
+						[
+							...out.filter((e) => e.topPort).map((e) => ({ e, out: true })),
+							...inc.filter((e) => !e.up).map((e) => ({ e, out: false }))
+						],
+						n.y
+					);
 				}
 			}
 		}
