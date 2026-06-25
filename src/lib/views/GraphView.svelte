@@ -98,6 +98,7 @@
 		// port-based state transitions (side/bottom):
 		down?: boolean;
 		up?: boolean; // target docked at its bottom edge (entered from below) rather than its top
+		topPort?: boolean; // bottom mode: source port sits on the top edge and leaves upward
 		bow?: number; // side mode: horizontal direction the curve leaves the port (matches the port side)
 		sx?: number;
 		sy?: number;
@@ -293,26 +294,34 @@
 					.map((r) => ({ r, target: nodes[groupOf.get(r.to)!] }))
 					.filter((o): o is { r: Row; target: Node } => !!o.target);
 				if (style === 'bottom') {
-					// order this state's out-edges by target x, then spread their bottom ports left→right in
-					// that order, so the edges fan out without crossing each other
-					const ordered = valid.sort((a, b) => cx(a.target) - cx(b.target));
-					ordered.forEach((o, j) => {
-						o.r.px = n.x + (n.w * (j + 1)) / (ordered.length + 1);
-						o.r.py = n.y + n.h;
-						// a back-edge (target above the port) docks at the target's bottom and is entered from
-						// below, rather than looping over the top
-						const up = o.target.y + o.target.h <= o.r.py;
-						edges.push({
-							from: n.id,
-							to: o.target.id,
-							global: n.any,
-							up,
-							sx: o.r.px,
-							sy: o.r.py,
-							tx: cx(o.target),
-							ty: up ? o.target.y + o.target.h : o.target.y
+					// edges to a target below leave the bottom edge; back-edges (target above) leave the TOP
+					// edge and rise to the target's bottom — so flow stays vertical in both directions. each
+					// group spreads left→right by target x so its edges fan out without crossing.
+					const isUp = (o: { target: Node }) => o.target.y + o.target.h <= n.y + n.h;
+					const place = (arr: { r: Row; target: Node }[], py: number, up: boolean) => {
+						arr.sort((a, b) => cx(a.target) - cx(b.target));
+						arr.forEach((o, j) => {
+							o.r.px = n.x + (n.w * (j + 1)) / (arr.length + 1);
+							o.r.py = py;
+							edges.push({
+								from: n.id,
+								to: o.target.id,
+								global: n.any,
+								up,
+								topPort: up,
+								sx: o.r.px,
+								sy: o.r.py,
+								tx: cx(o.target),
+								ty: up ? o.target.y + o.target.h : o.target.y
+							});
 						});
-					});
+					};
+					place(
+						valid.filter((o) => !isUp(o)),
+						n.y + n.h,
+						false
+					);
+					place(valid.filter(isUp), n.y, true);
 				} else {
 					// side: a lone out-edge drops straight down; otherwise leave from the side (at the row's
 					// y) that's nearer the target
@@ -391,14 +400,17 @@
 
 	// cubic curve from a port to the target: bottom/lone ports leave straight down, side ports leave
 	// horizontally toward their own side; the target is approached from above (top dock) or, for a
-	// back-edge, from below (bottom dock, `up`)
+	// back-edge, from below (bottom dock, `up`). vertical back-edges get a lateral lane so they bow
+	// clear of the forward edge running the other way in the same corridor.
+	const LANE = 30;
 	const edgePath = (e: Edge) => {
 		const vertical = layoutCfg.edgeStyle === 'bottom' || e.down;
 		const off = vertical ? 40 : 50;
+		const lane = vertical && e.up ? LANE : 0;
 		const c1 = vertical
-			? `${e.sx!} ${e.sy! + 40}`
+			? `${e.sx! + lane} ${e.sy! + (e.topPort ? -40 : 40)}`
 			: `${e.sx! + (e.bow ?? (e.tx! < e.sx! ? -50 : 50))} ${e.sy!}`;
-		const c2 = e.up ? `${e.tx!} ${e.ty! + off}` : `${e.tx!} ${e.ty! - off}`;
+		const c2 = e.up ? `${e.tx! + lane} ${e.ty! + off}` : `${e.tx!} ${e.ty! - off}`;
 		return `M ${e.sx!} ${e.sy!} C ${c1}, ${c2}, ${e.tx!} ${e.ty!}`;
 	};
 
