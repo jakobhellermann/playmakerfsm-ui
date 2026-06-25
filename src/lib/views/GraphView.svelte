@@ -263,9 +263,10 @@
 	let view = $state<{ tx: number; ty: number; k: number } | null>(null);
 	const cur = $derived(view ?? home);
 
-	// re-fit whenever the layout (i.e. the model) changes
+	// re-fit whenever the model (i.e. the FSM) changes — not on config tweaks,
+	// so adjusting ranker/seps doesn't lose pan/zoom state
 	$effect(() => {
-		void layout;
+		void model;
 		view = null;
 	});
 
