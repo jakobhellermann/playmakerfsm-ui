@@ -564,6 +564,15 @@
 	<button onclick={() => zoomAround(cw / 2, ch / 2, 1.25)}>+</button>
 	<button onclick={() => zoomAround(cw / 2, ch / 2, 0.8)}>−</button>
 	<button onclick={() => (view = { ...fit })}>fit</button>
+	<span class="tb-label">transition labels</span>
+	<div class="seg">
+		{#each ['routed', 'side', 'bottom'] as s}
+			<button
+				class:active={layoutCfg.edgeStyle === s}
+				onclick={() => (layoutCfg.edgeStyle = s as EdgeStyle)}>{s === 'routed' ? 'edge' : s}</button
+			>
+		{/each}
+	</div>
 	<button class="cfg-btn" class:active={showCfg} onclick={() => (showCfg = !showCfg)}>⚙</button>
 	<span class="dim"
 		>{model.states.length} states · {Math.round(cur.k * 100)}% · drag to pan, scroll to zoom</span
@@ -576,17 +585,6 @@
 
 {#if showCfg}
 	<div class="cfg-panel">
-		<label>
-			<span>edges</span>
-			<div class="seg">
-				{#each ['routed', 'side', 'bottom'] as s}
-					<button
-						class:active={layoutCfg.edgeStyle === s}
-						onclick={() => (layoutCfg.edgeStyle = s as EdgeStyle)}>{s}</button
-					>
-				{/each}
-			</div>
-		</label>
 		<label>
 			<span>direction</span>
 			<div class="seg">
@@ -865,7 +863,7 @@
 	.grow {
 		flex: 1;
 	}
-	.toolbar button {
+	.toolbar > button {
 		background: var(--panel);
 		color: var(--fg);
 		border: 1px solid #333;
@@ -874,9 +872,10 @@
 		height: 26px;
 		cursor: pointer;
 	}
-	.toolbar button:last-of-type {
-		width: auto;
-		padding: 0 0.5rem;
+	.tb-label {
+		margin-left: 0.5rem;
+		font-size: 0.8rem;
+		color: var(--dim);
 	}
 	.cfg-btn {
 		font-size: 1.1rem;
@@ -902,11 +901,11 @@
 		font-size: 0.8rem;
 		color: var(--dim);
 	}
-	.cfg-panel .seg {
+	.seg {
 		display: flex;
 		gap: 2px;
 	}
-	.cfg-panel .seg button {
+	.seg button {
 		background: var(--bg);
 		color: var(--fg);
 		border: 1px solid #333;
@@ -917,7 +916,7 @@
 		width: auto;
 		height: auto;
 	}
-	.cfg-panel .seg button.active {
+	.seg button.active {
 		background: var(--accent);
 		color: var(--bg);
 		border-color: var(--accent);
