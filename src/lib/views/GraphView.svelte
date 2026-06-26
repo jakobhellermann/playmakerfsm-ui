@@ -561,9 +561,6 @@
 <svelte:window onmousemove={move} onmouseup={end} />
 
 <div class="toolbar">
-	<button onclick={() => zoomAround(cw / 2, ch / 2, 1.25)}>+</button>
-	<button onclick={() => zoomAround(cw / 2, ch / 2, 0.8)}>−</button>
-	<button onclick={() => (view = { ...fit })}>fit</button>
 	<span class="tb-label">transition labels</span>
 	<div class="seg">
 		{#each ['routed', 'side', 'bottom'] as s}
@@ -574,6 +571,7 @@
 		{/each}
 	</div>
 	<button class="cfg-btn" class:active={showCfg} onclick={() => (showCfg = !showCfg)}>⚙</button>
+	<button onclick={() => (view = { ...fit })}>fit</button>
 	{#if modeTabs}
 		<span class="grow"></span>
 		{@render modeTabs()}
