@@ -24,7 +24,7 @@ export interface Token {
 	cls?: string;
 	/** hover text — used to reveal the elements behind a collapsed `[N elems]` list */
 	title?: string;
-	/** event name — when this token is an event value (→"CANCEL"), for click-to-navigate */
+	/** event name — when this token is an event value (->"CANCEL"), for click-to-navigate */
 	event?: string;
 }
 
@@ -133,12 +133,12 @@ export function actionTokens(a: Action): Token[] {
 export function toPseudocode(model: FsmModel): string {
 	const out: string[] = [`fsm ${model.name} {`, `  start ${model.start_state}`];
 	for (const t of model.global_transitions) {
-		out.push(`  on ${t.event} → ${t.to_state || '(none)'}  // from any state`);
+		out.push(`  on ${t.event} -> ${t.to_state || '(none)'}  // from any state`);
 	}
 	for (const s of model.states) {
 		out.push('', `  state ${s.name} {`);
 		for (const a of s.actions) out.push(`    ${actionText(a)}`);
-		for (const t of s.transitions) out.push(`    on ${t.event} → ${t.to_state || '(none)'}`);
+		for (const t of s.transitions) out.push(`    on ${t.event} -> ${t.to_state || '(none)'}`);
 		out.push('  }');
 	}
 	out.push('}');

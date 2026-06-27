@@ -25,7 +25,7 @@
 		<h2 title={glossary.globalTransitions}>Global transitions</h2>
 		{#each model.global_transitions as t (t.event + t.to_state)}
 			<div class="mono">
-				on <span class="event">{t.event}</span> → <span class="state">{t.to_state}</span>
+				on <span class="event">{t.event}</span> -> <span class="state">{t.to_state}</span>
 			</div>
 		{/each}
 	</section>
@@ -41,7 +41,7 @@
 			</div>
 			{#each s.transitions as t (t.event + t.to_state)}
 				<div class="mono trans">
-					on <span class="event">{t.event}</span> → <span class="state">{t.to_state}</span>
+					on <span class="event">{t.event}</span> -> <span class="state">{t.to_state}</span>
 				</div>
 			{/each}
 			{#each s.actions as a, i (i)}

@@ -70,7 +70,7 @@
 	{#each model.global_transitions as t (t.event + t.to_state)}
 		<div class="i1">
 			<span class="kw">on</span> <span class="event">{t.event}</span>
-			<span class="arrow">→</span>
+			<span class="arrow">-></span>
 			{@render stateRef(t.to_state)} <span class="cmt">// from any state</span>
 		</div>
 	{/each}
@@ -102,7 +102,7 @@
 		{#each s.transitions as t (t.event + t.to_state)}
 			<div class="i2">
 				<span class="kw">on</span> <span class="event">{t.event}</span>
-				<span class="arrow">→</span>
+				<span class="arrow">-></span>
 				{@render stateRef(t.to_state)}
 			</div>
 		{/each}

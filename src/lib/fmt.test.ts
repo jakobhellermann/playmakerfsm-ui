@@ -52,7 +52,7 @@ describe('fmtValue', () => {
 		expect(fmtValue({ type: 'PackedVar', value: null })).toBe('(unset)');
 		expect(fmtValue({ type: 'PackedVar', value: 'Gravity Scale' })).toBe('var "Gravity Scale"');
 		expect(fmtValue({ type: 'Event', value: null })).toBe('(none)');
-		expect(fmtValue({ type: 'Event', value: 'SLASH' })).toBe('→"SLASH"');
+		expect(fmtValue({ type: 'Event', value: 'SLASH' })).toBe('->"SLASH"');
 	});
 
 	it('fsm strings, enums, arrays', () => {

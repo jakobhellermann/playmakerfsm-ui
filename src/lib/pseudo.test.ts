@@ -60,11 +60,11 @@ describe('toPseudocode', () => {
 		expect(toPseudocode(m)).toBe(
 			`fsm Demo {
   start A
-  on GO → B  // from any state
+  on GO -> B  // from any state
 
   state A {
     Foo(p=true)
-    on NEXT → B
+    on NEXT -> B
   }
 
   state B {

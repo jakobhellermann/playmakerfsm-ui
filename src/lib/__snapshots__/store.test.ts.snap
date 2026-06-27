@@ -5,8 +5,8 @@ exports[`real store (hk) > pseudocode snapshot: Achievement 1`] = `
   start State 1
 
   state State 1 {
-    Trigger2dEvent(trigger=OnTriggerEnter2D, collideTag="", collideLayer="", sendEvent=→"ENTER", storeCollider=var "")
-    on ENTER → State 3
+    Trigger2dEvent(trigger=OnTriggerEnter2D, collideTag="", collideLayer="", sendEvent=->"ENTER", storeCollider=var "")
+    on ENTER -> State 3
   }
 
   state State 2 {
@@ -15,9 +15,9 @@ exports[`real store (hk) > pseudocode snapshot: Achievement 1`] = `
 
   state State 3 {
     GetPlayerDataInt(gameObject=var "GameManager", intName="stagPosition", storeValue=var "Current Position")
-    IntCompare(integer1=var "Current Position", integer2=9, equal=→"ENTER", lessThan=(none), greaterThan=(none), everyFrame=false)
-    on ENTER → State 2
-    on FINISHED → State 1
+    IntCompare(integer1=var "Current Position", integer2=9, equal=->"ENTER", lessThan=(none), greaterThan=(none), everyFrame=false)
+    on ENTER -> State 2
+    on FINISHED -> State 1
   }
 }"
 `;
@@ -27,9 +27,9 @@ exports[`real store (hk) > pseudocode snapshot: Acid Armour Check 1`] = `
   start Pause
 
   state Check {
-    PlayerDataBoolTest(gameObject=var "GameManager", boolName="hasAcidArmour", isTrue=→"DISABLE", isFalse=(none))
-    on DISABLE → Disable
-    on GET ACID ARMOUR → Recheck
+    PlayerDataBoolTest(gameObject=var "GameManager", boolName="hasAcidArmour", isTrue=->"DISABLE", isFalse=(none))
+    on DISABLE -> Disable
+    on GET ACID ARMOUR -> Recheck
   }
 
   state Disable {
@@ -37,12 +37,12 @@ exports[`real store (hk) > pseudocode snapshot: Acid Armour Check 1`] = `
   }
 
   state Recheck {
-    on FINISHED → Check
+    on FINISHED -> Check
   }
 
   state Pause {
-    NextFrameEvent(sendEvent=→"FINISHED")
-    on FINISHED → Check
+    NextFrameEvent(sendEvent=->"FINISHED")
+    on FINISHED -> Check
   }
 }"
 `;
@@ -52,9 +52,9 @@ exports[`real store (hk) > pseudocode snapshot: Acid Armour Check 2`] = `
   start Pause
 
   state Check {
-    PlayerDataBoolTest(gameObject=var "GameManager", boolName="hasAcidArmour", isTrue=→"ENABLE", isFalse=(none))
-    on ENABLE → Enable
-    on GET ACID ARMOUR → Recheck
+    PlayerDataBoolTest(gameObject=var "GameManager", boolName="hasAcidArmour", isTrue=->"ENABLE", isFalse=(none))
+    on ENABLE -> Enable
+    on GET ACID ARMOUR -> Recheck
   }
 
   state Enable {
@@ -62,13 +62,13 @@ exports[`real store (hk) > pseudocode snapshot: Acid Armour Check 2`] = `
   }
 
   state Recheck {
-    on FINISHED → Check
+    on FINISHED -> Check
   }
 
   state Pause {
     SetCollider(gameObject=Self, active=false)
-    NextFrameEvent(sendEvent=→"FINISHED")
-    on FINISHED → Check
+    NextFrameEvent(sendEvent=->"FINISHED")
+    on FINISHED -> Check
   }
 }"
 `;

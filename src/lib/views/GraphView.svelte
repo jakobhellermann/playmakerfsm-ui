@@ -837,7 +837,7 @@
 				{#each selectedState.transitions as t (t.event + t.to_state)}
 					<div class="line">
 						<span class="kw">on</span> <span class="event">{t.event}</span>
-						<span class="arrow">→</span>
+						<span class="arrow">-></span>
 						{#if t.to_state}
 							<button class="state link" onclick={() => select(t.to_state)}>{t.to_state}</button>
 						{:else}

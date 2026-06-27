@@ -157,7 +157,7 @@ export function fmtValue(v: ParamValue): string {
 		case 'PackedVar':
 			return v.value === null ? '(unset)' : `var ${q(v.value)}`;
 		case 'Event':
-			return v.value === null ? '(none)' : `→${q(v.value)}`;
+			return v.value === null ? '(none)' : `->${q(v.value)}`;
 		case 'Str':
 			return q(v.value);
 		case 'FsmString':
