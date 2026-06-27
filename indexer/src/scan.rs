@@ -43,7 +43,11 @@ pub fn scan_game(steam_path: &str, out_dir: &Path) -> Result<ScanResult> {
 	let env = Environment::new(game_files, tpk);
 
 	let enum_map = build_enum_map(&env.game_files.game_dir.join("Managed"));
-	eprintln!("enum map: {} action fields", enum_map.len());
+	eprintln!(
+		"enum map: {} action fields, {} enum types",
+		enum_map.by_field.len(),
+		enum_map.by_name.len()
+	);
 
 	let scene_names = scene_lookup::build_scene_lookup(&env)?;
 	eprintln!("scenes: {} names", scene_names.len());
