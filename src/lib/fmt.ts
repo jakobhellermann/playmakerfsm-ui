@@ -9,6 +9,7 @@ import type {
 	Property,
 	StrValue,
 	TemplateControl,
+	Value,
 	VarValue
 } from './model';
 
@@ -92,9 +93,33 @@ function fmtEventTarget(t: EventTarget): string {
 	return bits.length ? `${kind}(${bits.join(', ')})` : kind;
 }
 
+// the active parameter value of a FunctionCall (a `Value`, the variant decode.rs selects by type)
+function fmtCallValue(v: Value): string {
+	switch (v.type) {
+		case 'Var':
+			return `var ${q(v.value)}`;
+		case 'Bool':
+		case 'Int':
+		case 'Float':
+			return String(v.value);
+		case 'Str':
+			return q(v.value);
+		case 'Vector':
+			return `(${v.value.join(', ')})`;
+		case 'Enum':
+			return `${short(v.value.enum_name)}(${v.value.value})`;
+		case 'Object':
+			return fmtObjectRef(v.value);
+		case 'Array':
+			return fmtArray(v.value);
+	}
+}
+
 function fmtFunction(f: Call): string {
-	return !f.parameter_type || f.parameter_type === 'None'
-		? `${f.function}()`
+	if (!f.parameter_type || f.parameter_type === 'None') return `${f.function}()`;
+	// fall back to the bare type when the value couldn't be decoded
+	return f.value
+		? `${f.function}(${fmtCallValue(f.value)})`
 		: `${f.function}(<${f.parameter_type}>)`;
 }
 

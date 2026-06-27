@@ -226,9 +226,43 @@ fn fmt_function(f: &Value) -> String {
     let function = f["function"].as_str().unwrap_or("");
     let pt = f["parameter_type"].as_str().unwrap_or("");
     if pt.is_empty() || pt == "None" {
-        format!("{function}()")
-    } else {
-        format!("{function}(<{pt}>)")
+        return format!("{function}()");
+    }
+    match f.get("value") {
+        Some(v) if !v.is_null() => format!("{function}({})", fmt_call_value(v)),
+        // fall back to the bare type when the value couldn't be decoded
+        _ => format!("{function}(<{pt}>)"),
+    }
+}
+
+// the active parameter value of a FunctionCall (a `Value`, the variant decode.rs selects by type)
+fn fmt_call_value(v: &Value) -> String {
+    match v["type"].as_str() {
+        Some("Var") => format!("var {}", q(v["value"].as_str().unwrap_or(""))),
+        Some("Bool") => v["value"].as_bool().unwrap_or(false).to_string(),
+        Some("Int") => v["value"].as_i64().unwrap_or(0).to_string(),
+        Some("Float") => format!("{}", v["value"].as_f64().unwrap_or(0.0)),
+        Some("Str") => q(v["value"].as_str().unwrap_or("")),
+        Some("Vector") => {
+            let comps = v["value"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .map(|c| format!("{}", c.as_f64().unwrap_or(0.0)))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .unwrap_or_default();
+            format!("({comps})")
+        }
+        Some("Enum") => {
+            let name = v["value"]["enum_name"].as_str().unwrap_or("");
+            let val = v["value"]["value"].as_i64().unwrap_or(0);
+            format!("{}({val})", short(name))
+        }
+        Some("Object") => fmt_object_ref(&v["value"]),
+        Some("Array") => fmt_array(&v["value"]),
+        _ => format!("{v}"),
     }
 }
 
