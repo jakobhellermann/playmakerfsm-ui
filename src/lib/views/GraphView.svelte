@@ -527,41 +527,88 @@
 			});
 	}
 
+	// pan/zoom via pointer events (mouse, touch, pen). one pointer pans; two pinch-zoom.
+	const pointers = new Map<number, { x: number; y: number }>();
 	let drag = $state<{ x: number; y: number; tx: number; ty: number } | null>(null);
-	let moved = false; // whether the current canvas drag actually panned (vs a plain click)
-	function down(e: MouseEvent) {
+	let pinch: { dist: number; cx: number; cy: number; k: number; tx: number; ty: number } | null =
+		null;
+	let moved = false; // whether the current gesture actually moved (vs a plain tap/click)
+	function startPinch() {
+		const rect = canvas?.getBoundingClientRect();
+		const [a, b] = [...pointers.values()];
+		pinch = {
+			dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+			cx: (a.x + b.x) / 2 - (rect?.left ?? 0),
+			cy: (a.y + b.y) / 2 - (rect?.top ?? 0),
+			k: cur.k,
+			tx: cur.tx,
+			ty: cur.ty
+		};
+	}
+	function down(e: PointerEvent) {
+		if (e.button > 0) return; // ignore right/middle mouse buttons
+		pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 		moved = false;
+		if (pointers.size >= 2) {
+			startPinch();
+			drag = null;
+			return;
+		}
 		drag = { x: e.clientX, y: e.clientY, tx: cur.tx, ty: cur.ty };
 	}
 
 	// drag the panel's top edge to resize its height
 	let resizing = $state<{ y: number; h: number } | null>(null);
-	function resizeDown(e: MouseEvent) {
+	function resizeDown(e: PointerEvent) {
 		e.preventDefault();
 		resizing = { y: e.clientY, h: panelHeight };
 	}
 
-	function move(e: MouseEvent) {
+	function move(e: PointerEvent) {
 		if (resizing) {
 			panelHeight = clamp(resizing.h + (resizing.y - e.clientY), 120, 640);
+			return;
+		}
+		if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+		if (pinch && pointers.size >= 2) {
+			const rect = canvas?.getBoundingClientRect();
+			const [a, b] = [...pointers.values()];
+			const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+			const midx = (a.x + b.x) / 2 - (rect?.left ?? 0);
+			const midy = (a.y + b.y) / 2 - (rect?.top ?? 0);
+			const k = clamp((pinch.k * dist) / pinch.dist, 0.1, 4);
+			const r = k / pinch.k;
+			// pin the graph point under the start midpoint, while following the fingers' midpoint (so a
+			// two-finger move also pans)
+			view = { tx: midx - (pinch.cx - pinch.tx) * r, ty: midy - (pinch.cy - pinch.ty) * r, k };
+			moved = true;
 			return;
 		}
 		if (!drag) return;
 		if (Math.abs(e.clientX - drag.x) > 3 || Math.abs(e.clientY - drag.y) > 3) moved = true;
 		view = { tx: drag.tx + (e.clientX - drag.x), ty: drag.ty + (e.clientY - drag.y), k: cur.k };
 	}
-	function end() {
-		// a click on empty canvas (mousedown+up without a pan) clears the selection
-		if (drag && !moved) select(null);
-		drag = null;
+	function end(e: PointerEvent) {
 		if (resizing) {
 			resizing = null;
 			if (browser) localStorage.setItem(SIDEBAR_KEY, String(panelHeight));
+			return;
+		}
+		pointers.delete(e.pointerId);
+		if (pointers.size < 2) pinch = null;
+		if (pointers.size === 0) {
+			// a tap/click on empty canvas (no pan) clears the selection
+			if (drag && !moved) select(null);
+			drag = null;
+		} else if (pointers.size === 1) {
+			// one finger lifted after a pinch — resume panning from the remaining finger without a jump
+			const [p] = [...pointers.values()];
+			drag = { x: p.x, y: p.y, tx: cur.tx, ty: cur.ty };
 		}
 	}
 </script>
 
-<svelte:window onmousemove={move} onmouseup={end} />
+<svelte:window onpointermove={move} onpointerup={end} onpointercancel={end} />
 
 <div class="toolbar">
 	<span class="tb-label">transition labels</span>
@@ -630,7 +677,7 @@
 		bind:this={canvas}
 		bind:clientWidth={cw}
 		bind:clientHeight={ch}
-		onmousedown={down}
+		onpointerdown={down}
 		onwheel={wheel}
 		oncontextmenu={(e) => e.preventDefault()}
 		class:grabbing={!!drag}
@@ -816,7 +863,7 @@
 
 	<aside class="panel" style="height: {panelHeight}px">
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="resizer" onmousedown={resizeDown} class:active={!!resizing}></div>
+		<div class="resizer" onpointerdown={resizeDown} class:active={!!resizing}></div>
 		{#if selectedState}
 			<div class="sbhead">
 				<span class="state">{selectedState.name}</span>
@@ -979,9 +1026,10 @@
 		left: 0;
 		right: 0;
 		top: 0;
-		height: 6px;
+		height: 10px;
 		cursor: row-resize;
 		z-index: 2;
+		touch-action: none;
 	}
 	.resizer:hover,
 	.resizer.active {
