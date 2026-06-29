@@ -61,6 +61,15 @@
 		goto(`?${p}`, { replaceState: true, keepFocus: true, noScroll: true });
 	}
 
+	// resolve an event referenced inside an action to its target state (own transitions, then global),
+	// so the sidebar can make it a clickable jump — same idea as PseudoView's event links
+	function eventTarget(event: string): string | undefined {
+		return (
+			selectedState?.transitions.find((t) => t.event === event)?.to_state ??
+			model.global_transitions.find((t) => t.event === event)?.to_state
+		);
+	}
+
 	const ANY = '★ any state';
 
 	const CHAR = 6.6; // port-mode event/label text metric
@@ -873,8 +882,16 @@
 				{#each selectedState.actions as a, i (i)}
 					{@const dead = a.enabled && isDeadAction(a)}
 					<div class="line" class:off={!a.enabled || dead}>
-						{#each actionTokens(a) as t, k (k)}<span class={t.cls}>{t.text}</span
-							>{/each}{#if !a.enabled}<span class="cmt"> // disabled</span>{/if}
+						{#each actionTokens(a) as t, k (k)}{#if t.event}{@const target = eventTarget(
+									t.event
+								)}{#if target}<button
+										class="event link"
+										onclick={() => select(target)}
+										title={t.title}>{t.text}</button
+									>{:else}<span class={t.cls} title={t.title}>{t.text}</span>{/if}{:else}<span
+									class={t.cls}
+									title={t.title}>{t.text}</span
+								>{/if}{/each}{#if !a.enabled}<span class="cmt"> // disabled</span>{/if}
 					</div>
 				{/each}
 				{#if selectedState.actions.length && selectedState.transitions.length}
