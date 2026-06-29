@@ -100,12 +100,21 @@ pub fn scan_game(steam_path: &str, out_dir: &Path) -> Result<ScanResult> {
             };
             // If the component references a template, the template's FSM *is* the runtime FSM —
             // PlayMakerFSM.InitTemplate() replaces the component FSM entirely, keeping only the
-            // component's variables and name. Always resolve when the PPtr is set.
-            let template = (pm.fsmTemplate.m_PathID != 0)
-                .then(|| handle.deref_read::<FsmTemplate>(pm.fsmTemplate).ok())
+            // component's variables and name. The template lives in its OWN serialized file, so its
+            // action PPtrs index THAT file's external table — resolve them against the template's
+            // file, not the instance's, otherwise cross-bundle refs land in the wrong bundle.
+            let tpl = (pm.fsmTemplate.m_PathID != 0)
+                .then(|| handle.deref(pm.fsmTemplate).ok())
                 .flatten();
-            let mut model = decode_fsm(template.as_ref().map_or(&pm.fsm, |t| &t.fsm), &mut ctx);
-            if template.is_some() {
+            let tpl_value = tpl.as_ref().and_then(|h| h.read().ok());
+            let mut tpl_ctx = tpl.as_ref().map(|h| FsmContext::new(&h.file));
+
+            let fsm = tpl_value.as_ref().map_or(&pm.fsm, |t| &t.fsm);
+            let mut model = match tpl_ctx.as_mut() {
+                Some(c) => decode_fsm(fsm, c),
+                None => decode_fsm(fsm, &mut ctx),
+            };
+            if tpl_value.is_some() {
                 model.name = &pm.fsm.name;
             }
             bake_enums(&mut model, &enum_map);
