@@ -20,7 +20,7 @@
 
 	// view mode is a global preference (localStorage), overridable per-FSM via ?mode=
 	const STORAGE_KEY = 'fsm:view-mode';
-	let stored = $state<Mode>('pseudo');
+	let stored = $state<Mode>('graph');
 	if (browser && isMode(localStorage.getItem(STORAGE_KEY)))
 		stored = localStorage.getItem(STORAGE_KEY) as Mode;
 	const urlMode = $derived(page.url.searchParams.get('mode'));
