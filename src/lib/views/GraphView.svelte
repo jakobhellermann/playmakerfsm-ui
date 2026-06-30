@@ -34,9 +34,11 @@
 		nodesep: number;
 		ranksep: number;
 		edgeStyle: EdgeStyle;
+		collapseChains: boolean;
 	};
 	const defaultCfg: LayoutCfg = {
 		layout: 'editor',
+		collapseChains: true,
 		rankdir: 'TB',
 		ranker: 'network-simplex',
 		nodesep: 28,
@@ -143,10 +145,7 @@
 			return o.length === 1 && o[0].to === to && i.length === 1 && i[0].from === from;
 		};
 		const groups: { states: string[]; events: string[] }[] = [];
-		if (editor) {
-			// editor layout: one node per state (no chain collapsing) — positions come from the raw rects
-			for (const s of model.states) groups.push({ states: [s.name], events: [] });
-		} else {
+		if (layoutCfg.collapseChains) {
 			const visited = new Set<string>();
 			const startChain = (start: string) => {
 				if (visited.has(start)) return;
@@ -172,6 +171,8 @@
 				startChain(s.name);
 			}
 			for (const s of model.states) startChain(s.name);
+		} else {
+			for (const s of model.states) groups.push({ states: [s.name], events: [] });
 		}
 		// no ANY node — global transitions render as incoming arrows above their target
 		const groupOf = new Map<string, number>();
@@ -209,18 +210,24 @@
 		let height = 100;
 		const routedEdges: Edge[] = [];
 		if (editor) {
+			// a collapsed chain is placed at its head state's editor position
 			const raw = groups.map((grp) => model.states.find((s) => s.name === grp.states[0])!.position);
 			const minX = Math.min(...raw.map((p) => p.x));
 			const minY = Math.min(...raw.map((p) => p.y));
-			// keep the raw rect for `edge` (faithful editor look); size to fit name + ports for side/bottom
 			posList = raw.map((p, i) => {
+				const grp = groups[i];
 				const x = p.x - minX + 20;
 				const y = p.y - minY + 20;
+				// keep the faithful raw rect only for a lone state in `edge` mode; otherwise size to fit
+				// the stacked chain states + any ports (same sizing as the computed layout)
+				if (grp.states.length === 1 && routed) return { x, y, w: p.w, h: p.h };
 				if (port) {
-					const sz = sizeOf(groups[i].states, transOf(groups[i].states[0]), 1);
+					const sz = sizeOf(grp.states, transOf(grp.states[0]), grp.states.length);
 					return { x, y, w: sz.width, h: sz.height };
 				}
-				return { x, y, w: p.w, h: p.h };
+				const w = Math.max(54, ...grp.states.map((s) => s.length * CHAR_WIDE + 22));
+				const h = grp.states.length === 1 ? 30 : grp.states.length * ROW_H + PAD_Y * 2;
+				return { x, y, w, h };
 			});
 			width = Math.max(...posList.map((p) => p.x + p.w), 80) + 20;
 			height = Math.max(...posList.map((p) => p.y + p.h), 80) + 20;
@@ -332,9 +339,8 @@
 
 		const edges: Edge[] = [...routedEdges];
 		if (routed && editor) {
-			// editor layout has no dagre routing: straight labelled lines between state boxes,
+			// editor layout has no dagre routing: straight labelled lines between nodes (groups), with
 			// endpoints trimmed to each box border along the centre-to-centre line
-			const byId = new Map(nodes.map((n) => [n.id, n]));
 			const cx = (n: Node) => n.x + n.w / 2;
 			const cy = (n: Node) => n.y + n.h / 2;
 			const border = (n: Node, tx: number, ty: number) => {
@@ -348,19 +354,21 @@
 				return { x: cx(n) + dx * t, y: cy(n) + dy * t };
 			};
 			for (const s of model.states) {
-				const from = byId.get(s.name);
-				if (!from) continue;
+				const fg = groupOf.get(s.name);
+				if (fg == null) continue;
+				const from = nodes[fg];
 				for (const t of s.transitions) {
-					const to = byId.get(t.to_state);
-					if (!to) continue;
+					const tg = groupOf.get(t.to_state);
+					if (tg == null || tg === fg) continue; // skip intra-chain transitions
+					const to = nodes[tg];
 					const p0 = border(from, cx(to), cy(to));
 					const p1 = border(to, cx(from), cy(from));
 					edges.push({
 						points: [p0, p1],
 						label: t.event,
 						global: false,
-						from: s.name,
-						to: t.to_state,
+						from: from.id,
+						to: to.id,
 						lx: (p0.x + p1.x) / 2,
 						ly: (p0.y + p1.y) / 2
 					});
@@ -731,6 +739,10 @@
 			>
 		{/each}
 	</div>
+	<label class="tb-check">
+		<input type="checkbox" bind:checked={layoutCfg.collapseChains} />
+		collapse chains
+	</label>
 	<button class="cfg-btn" class:active={showCfg} onclick={() => (showCfg = !showCfg)}>⚙</button>
 	<button onclick={() => (view = { ...fit })}>fit</button>
 	{#if modeTabs}
@@ -1012,6 +1024,15 @@
 		margin-left: 0.5rem;
 		font-size: 0.8rem;
 		color: var(--dim);
+	}
+	.tb-check {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+		margin-left: 0.5rem;
+		font-size: 0.8rem;
+		color: var(--dim);
+		cursor: pointer;
 	}
 	.cfg-btn {
 		font-size: 1.1rem;
