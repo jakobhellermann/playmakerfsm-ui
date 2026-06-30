@@ -20,10 +20,15 @@
 
 	type RankDir = 'TB' | 'LR';
 	type Ranker = 'network-simplex' | 'tight-tree' | 'longest-path';
-	// edge style: `routed` = dagre routes the edges and labels them at the midpoint; `side`/`bottom` =
-	// out-transitions are labelled ports on the state, edges leaving from the side resp. the bottom edge
+	// two orthogonal axes:
+	//  layout — where nodes sit: `computed` (dagre auto-layout, collapses linear chains) or `editor`
+	//           (raw PlayMaker editor rects, one node per state)
+	//  edgeStyle — how edges/labels look: `routed` (label at the line midpoint) or `side`/`bottom`
+	//           (out-transitions as labelled ports leaving the side resp. the bottom edge)
+	type LayoutMode = 'computed' | 'editor';
 	type EdgeStyle = 'routed' | 'side' | 'bottom';
 	type LayoutCfg = {
+		layout: LayoutMode;
 		rankdir: RankDir;
 		ranker: Ranker;
 		nodesep: number;
@@ -31,11 +36,12 @@
 		edgeStyle: EdgeStyle;
 	};
 	const defaultCfg: LayoutCfg = {
+		layout: 'editor',
 		rankdir: 'TB',
 		ranker: 'network-simplex',
 		nodesep: 28,
 		ranksep: 46,
-		edgeStyle: 'bottom'
+		edgeStyle: 'side'
 	};
 	let layoutCfg = $state<LayoutCfg>(
 		browser && localStorage.getItem(CFG_KEY)
@@ -112,6 +118,7 @@
 
 	const layout = $derived.by(() => {
 		const style = layoutCfg.edgeStyle;
+		const editor = layoutCfg.layout === 'editor';
 		const routed = style === 'routed';
 		const port = !routed;
 
@@ -135,32 +142,37 @@
 			const i = ins.get(to) ?? [];
 			return o.length === 1 && o[0].to === to && i.length === 1 && i[0].from === from;
 		};
-		const visited = new Set<string>();
 		const groups: { states: string[]; events: string[] }[] = [];
-		const startChain = (start: string) => {
-			if (visited.has(start)) return;
-			const states: string[] = [start];
-			const events: string[] = [];
-			visited.add(start);
-			let cur = start;
-			while (true) {
-				const o = outs.get(cur) ?? [];
-				if (o.length !== 1 || !isChainLink(cur, o[0].to)) break;
-				const next = o[0].to;
-				if (visited.has(next)) break;
-				events.push(o[0].event);
-				states.push(next);
-				visited.add(next);
-				cur = next;
+		if (editor) {
+			// editor layout: one node per state (no chain collapsing) — positions come from the raw rects
+			for (const s of model.states) groups.push({ states: [s.name], events: [] });
+		} else {
+			const visited = new Set<string>();
+			const startChain = (start: string) => {
+				if (visited.has(start)) return;
+				const states: string[] = [start];
+				const events: string[] = [];
+				visited.add(start);
+				let cur = start;
+				while (true) {
+					const o = outs.get(cur) ?? [];
+					if (o.length !== 1 || !isChainLink(cur, o[0].to)) break;
+					const next = o[0].to;
+					if (visited.has(next)) break;
+					events.push(o[0].event);
+					states.push(next);
+					visited.add(next);
+					cur = next;
+				}
+				groups.push({ states, events });
+			};
+			for (const s of model.states) {
+				const i = ins.get(s.name) ?? [];
+				if (i.length === 1 && isChainLink(i[0].from, s.name)) continue;
+				startChain(s.name);
 			}
-			groups.push({ states, events });
-		};
-		for (const s of model.states) {
-			const i = ins.get(s.name) ?? [];
-			if (i.length === 1 && isChainLink(i[0].from, s.name)) continue;
-			startChain(s.name);
+			for (const s of model.states) startChain(s.name);
 		}
-		for (const s of model.states) startChain(s.name);
 		// no ANY node — global transitions render as incoming arrows above their target
 		const groupOf = new Map<string, number>();
 		groups.forEach((grp, i) => grp.states.forEach((s) => groupOf.set(s, i)));
@@ -190,49 +202,97 @@
 					? chainLen * ROW_H + PAD_Y * 2 + trans.length * ROW + (trans.length ? 6 : 0)
 					: HEADER + trans.length * ROW + (trans.length ? 6 : 0)
 		});
-		const g = new dagre.graphlib.Graph(routed ? { multigraph: true } : undefined);
-		g.setGraph({
-			rankdir: layoutCfg.rankdir,
-			ranker: layoutCfg.ranker,
-			nodesep: layoutCfg.nodesep,
-			ranksep: layoutCfg.ranksep,
-			marginx: 16,
-			marginy: 16
-		});
-		g.setDefaultEdgeLabel(() => ({}));
-		groups.forEach((grp, i) => {
-			const label = grp.states[0];
-			if (port) {
-				g.setNode(String(i), sizeOf(grp.states, transOf(label), grp.states.length));
-			} else {
-				const w = Math.max(54, ...grp.states.map((s) => s.length * CHAR_WIDE + 22));
-				const h = grp.states.length === 1 ? 30 : grp.states.length * ROW_H + PAD_Y * 2;
-				g.setNode(String(i), { width: w, height: h });
-			}
-		});
-		if (routed) {
-			const addEdge = (from: string, event: string, to: string, global: boolean) => {
-				const fg = groupOf.get(from);
-				const tg = groupOf.get(to);
-				if (fg == null || tg == null || fg === tg) return;
-				g.setEdge(String(fg), String(tg), { label: event, global }, `${from}|${event}|${to}`);
-			};
-			for (const s of model.states)
-				for (const t of s.transitions) addEdge(s.name, t.event, t.to_state, false);
+		// node geometry: raw editor rects (normalised so the top-left sits near the origin) or a dagre
+		// layout. the dagre path also produces the routed-edge polylines (collected into `routedEdges`).
+		let posList: { x: number; y: number; w: number; h: number }[];
+		let width = 100;
+		let height = 100;
+		const routedEdges: Edge[] = [];
+		if (editor) {
+			const raw = groups.map((grp) => model.states.find((s) => s.name === grp.states[0])!.position);
+			const minX = Math.min(...raw.map((p) => p.x));
+			const minY = Math.min(...raw.map((p) => p.y));
+			// keep the raw rect for `edge` (faithful editor look); size to fit name + ports for side/bottom
+			posList = raw.map((p, i) => {
+				const x = p.x - minX + 20;
+				const y = p.y - minY + 20;
+				if (port) {
+					const sz = sizeOf(groups[i].states, transOf(groups[i].states[0]), 1);
+					return { x, y, w: sz.width, h: sz.height };
+				}
+				return { x, y, w: p.w, h: p.h };
+			});
+			width = Math.max(...posList.map((p) => p.x + p.w), 80) + 20;
+			height = Math.max(...posList.map((p) => p.y + p.h), 80) + 20;
 		} else {
-			const link = (from: string, to: string) => {
-				const fg = groupOf.get(from);
-				const tg = groupOf.get(to);
-				if (fg != null && tg != null && fg !== tg) g.setEdge(String(fg), String(tg));
-			};
-			for (const s of model.states) for (const t of s.transitions) link(s.name, t.to_state);
+			const g = new dagre.graphlib.Graph(routed ? { multigraph: true } : undefined);
+			g.setGraph({
+				rankdir: layoutCfg.rankdir,
+				ranker: layoutCfg.ranker,
+				nodesep: layoutCfg.nodesep,
+				ranksep: layoutCfg.ranksep,
+				marginx: 16,
+				marginy: 16
+			});
+			g.setDefaultEdgeLabel(() => ({}));
+			groups.forEach((grp, i) => {
+				const label = grp.states[0];
+				if (port) {
+					g.setNode(String(i), sizeOf(grp.states, transOf(label), grp.states.length));
+				} else {
+					const w = Math.max(54, ...grp.states.map((s) => s.length * CHAR_WIDE + 22));
+					const h = grp.states.length === 1 ? 30 : grp.states.length * ROW_H + PAD_Y * 2;
+					g.setNode(String(i), { width: w, height: h });
+				}
+			});
+			if (routed) {
+				const addEdge = (from: string, event: string, to: string, global: boolean) => {
+					const fg = groupOf.get(from);
+					const tg = groupOf.get(to);
+					if (fg == null || tg == null || fg === tg) return;
+					g.setEdge(String(fg), String(tg), { label: event, global }, `${from}|${event}|${to}`);
+				};
+				for (const s of model.states)
+					for (const t of s.transitions) addEdge(s.name, t.event, t.to_state, false);
+			} else {
+				const link = (from: string, to: string) => {
+					const fg = groupOf.get(from);
+					const tg = groupOf.get(to);
+					if (fg != null && tg != null && fg !== tg) g.setEdge(String(fg), String(tg));
+				};
+				for (const s of model.states) for (const t of s.transitions) link(s.name, t.to_state);
+			}
+			dagre.layout(g);
+			posList = groups.map((_, i) => {
+				const n = g.node(String(i));
+				return { x: n.x - n.width / 2, y: n.y - n.height / 2, w: n.width, h: n.height };
+			});
+			if (routed) {
+				for (const e of g.edges()) {
+					const d = g.edge(e) as {
+						points: { x: number; y: number }[];
+						label: string;
+						global: boolean;
+					};
+					const mid = d.points[Math.floor(d.points.length / 2)] ?? { x: 0, y: 0 };
+					routedEdges.push({
+						points: d.points,
+						label: d.label,
+						global: d.global,
+						from: groups[Number(e.v)].states[0],
+						to: groups[Number(e.w)].states[0],
+						lx: mid.x,
+						ly: mid.y
+					});
+				}
+			}
+			const gl = g.graph();
+			width = gl.width ?? 100;
+			height = gl.height ?? 100;
 		}
-		dagre.layout(g);
 
 		const nodes: Node[] = groups.map((grp, i) => {
-			const n = g.node(String(i));
-			const left = n.x - n.width / 2;
-			const top = n.y - n.height / 2;
+			const { x: left, y: top, w, h } = posList[i];
 			const label = grp.states[0];
 			const chain = grp.states.length > 1;
 			let rows: Row[] = [];
@@ -245,8 +305,8 @@
 					ty: chain
 						? top + PAD_Y + grp.states.length * ROW_H + idx * ROW + ROW / 2
 						: top + HEADER + idx * ROW + ROW / 2,
-					px: left + n.width / 2, // placeholder; the port slot is assigned below
-					py: top + n.height,
+					px: left + w / 2, // placeholder; the port slot is assigned below
+					py: top + h,
 					// in side mode a lone out-edge drops straight down from the bottom centre
 					down: style === 'side' && single
 				}));
@@ -256,8 +316,8 @@
 				label,
 				x: left,
 				y: top,
-				w: n.width,
-				h: n.height,
+				w,
+				h,
 				start: grp.states[0] === model.start_state,
 				any: false,
 				rows,
@@ -270,26 +330,43 @@
 			};
 		});
 
-		const edges: Edge[] = [];
-		if (routed) {
-			for (const e of g.edges()) {
-				const d = g.edge(e) as {
-					points: { x: number; y: number }[];
-					label: string;
-					global: boolean;
-				};
-				const mid = d.points[Math.floor(d.points.length / 2)] ?? { x: 0, y: 0 };
-				edges.push({
-					points: d.points,
-					label: d.label,
-					global: d.global,
-					from: groups[Number(e.v)].states[0],
-					to: groups[Number(e.w)].states[0],
-					lx: mid.x,
-					ly: mid.y
-				});
+		const edges: Edge[] = [...routedEdges];
+		if (routed && editor) {
+			// editor layout has no dagre routing: straight labelled lines between state boxes,
+			// endpoints trimmed to each box border along the centre-to-centre line
+			const byId = new Map(nodes.map((n) => [n.id, n]));
+			const cx = (n: Node) => n.x + n.w / 2;
+			const cy = (n: Node) => n.y + n.h / 2;
+			const border = (n: Node, tx: number, ty: number) => {
+				const dx = tx - cx(n);
+				const dy = ty - cy(n);
+				if (dx === 0 && dy === 0) return { x: cx(n), y: cy(n) };
+				const t = Math.min(
+					dx !== 0 ? n.w / 2 / Math.abs(dx) : Infinity,
+					dy !== 0 ? n.h / 2 / Math.abs(dy) : Infinity
+				);
+				return { x: cx(n) + dx * t, y: cy(n) + dy * t };
+			};
+			for (const s of model.states) {
+				const from = byId.get(s.name);
+				if (!from) continue;
+				for (const t of s.transitions) {
+					const to = byId.get(t.to_state);
+					if (!to) continue;
+					const p0 = border(from, cx(to), cy(to));
+					const p1 = border(to, cx(from), cy(from));
+					edges.push({
+						points: [p0, p1],
+						label: t.event,
+						global: false,
+						from: s.name,
+						to: t.to_state,
+						lx: (p0.x + p1.x) / 2,
+						ly: (p0.y + p1.y) / 2
+					});
+				}
 			}
-		} else {
+		} else if (!routed) {
 			const cx = (m: Node) => m.x + m.w / 2;
 			const byId = new Map(nodes.map((n) => [n.id, n]));
 			const srcRow = new Map<Edge, Row>(); // bottom mode: edge → its source row (to re-place the port)
@@ -435,7 +512,6 @@
 			});
 		}
 
-		const gl = g.graph();
 		const edgeGroups: [Set<string>, Set<string>][] = edges.map((e) => {
 			const fg =
 				e.from === ANY
@@ -445,7 +521,7 @@
 			return [fg, tg];
 		});
 
-		return { nodes, edges, edgeGroups, width: gl.width ?? 100, height: gl.height ?? 100 };
+		return { nodes, edges, edgeGroups, width, height };
 	});
 
 	const line = (pts: { x: number; y: number }[]) => pts.map((p) => `${p.x},${p.y}`).join(' ');
@@ -637,7 +713,16 @@
 <svelte:window onpointermove={move} onpointerup={end} onpointercancel={end} />
 
 <div class="toolbar">
-	<span class="tb-label">transition labels</span>
+	<span class="tb-label">layout</span>
+	<div class="seg">
+		{#each ['computed', 'editor'] as l}
+			<button
+				class:active={layoutCfg.layout === l}
+				onclick={() => (layoutCfg.layout = l as LayoutMode)}>{l}</button
+			>
+		{/each}
+	</div>
+	<span class="tb-label">edges</span>
 	<div class="seg">
 		{#each ['routed', 'side', 'bottom'] as s}
 			<button

@@ -25,6 +25,8 @@ export interface Transition {
 export interface State {
 	name: string;
 	is_start: boolean;
+	/** the state's node rect in the PlayMaker editor graph (raw authored layout) */
+	position: { x: number; y: number; w: number; h: number };
 	transitions: Transition[];
 	actions: Action[];
 }
