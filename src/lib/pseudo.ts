@@ -65,11 +65,19 @@ export function actionTokens(a: Action): Token[] {
 		const used = [comp.target, comp.operand];
 		const others = a.params.filter((p) => !used.includes(p) && !isHiddenParam(a, p));
 		if (others.length === 0) {
-			return [
-				{ text: fmtValue(comp.target.value), cls: 'var' },
-				{ text: ` ${comp.op}= ` },
-				valueToken(comp.operand)
-			];
+			let op = comp.op;
+			let operand = valueToken(comp.operand);
+			// fold a negated literal into the operator: `+= -1` reads as `-= 1` (and vice versa)
+			const lit = comp.operand.value;
+			if (
+				(op === '+' || op === '-') &&
+				(lit.type === 'Float' || lit.type === 'Int') &&
+				lit.value < 0
+			) {
+				op = op === '+' ? '-' : '+';
+				operand = { ...operand, text: String(-lit.value) };
+			}
+			return [{ text: fmtValue(comp.target.value), cls: 'var' }, { text: ` ${op}= ` }, operand];
 		}
 	}
 

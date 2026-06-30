@@ -60,6 +60,23 @@ describe('actionTokens', () => {
 		expect(tokens.find((t) => t.text === 'Soft Terrain')?.title).toBe('layer 25');
 	});
 
+	it('folds a negated compound operand into the operator (+= -1 → -= 1)', () => {
+		const tokens = actionTokens({
+			class: 'X.FloatAdd',
+			custom_name: null,
+			enabled: true,
+			params: [
+				{
+					name: 'floatVariable',
+					type_name: 'FsmFloat',
+					value: { type: 'PackedVar', value: 'Flaps' }
+				},
+				{ name: 'add', type_name: 'FsmFloat', value: { type: 'Float', value: -1 } }
+			]
+		});
+		expect(tokens.map((t) => t.text).join('')).toBe('var "Flaps" -= 1');
+	});
+
 	it('highlights a var embedded in an eventTarget', () => {
 		const tokens = actionTokens({
 			class: 'X.SendEventByName',
