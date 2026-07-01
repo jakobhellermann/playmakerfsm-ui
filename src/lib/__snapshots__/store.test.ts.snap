@@ -27,31 +27,6 @@ exports[`real store (hk) > pseudocode snapshot: Acid Armour Check 1`] = `
   start Pause
 
   state Check {
-    PlayerDataBoolTest(gameObject=var "GameManager", boolName="hasAcidArmour", isTrue=->"DISABLE", isFalse=(none))
-    on DISABLE -> Disable
-    on GET ACID ARMOUR -> Recheck
-  }
-
-  state Disable {
-    SetDamageHeroAmount(target=Self, damageDealt=0)
-  }
-
-  state Recheck {
-    on FINISHED -> Check
-  }
-
-  state Pause {
-    NextFrameEvent(sendEvent=->"FINISHED")
-    on FINISHED -> Check
-  }
-}"
-`;
-
-exports[`real store (hk) > pseudocode snapshot: Acid Armour Check 2`] = `
-"fsm Acid Armour Check {
-  start Pause
-
-  state Check {
     PlayerDataBoolTest(gameObject=var "GameManager", boolName="hasAcidArmour", isTrue=->"ENABLE", isFalse=(none))
     on ENABLE -> Enable
     on GET ACID ARMOUR -> Recheck
@@ -67,6 +42,31 @@ exports[`real store (hk) > pseudocode snapshot: Acid Armour Check 2`] = `
 
   state Pause {
     SetCollider(gameObject=Self, active=false)
+    NextFrameEvent(sendEvent=->"FINISHED")
+    on FINISHED -> Check
+  }
+}"
+`;
+
+exports[`real store (hk) > pseudocode snapshot: Acid Armour Check 2`] = `
+"fsm Acid Armour Check {
+  start Pause
+
+  state Check {
+    PlayerDataBoolTest(gameObject=var "GameManager", boolName="hasAcidArmour", isTrue=->"DISABLE", isFalse=(none))
+    on DISABLE -> Disable
+    on GET ACID ARMOUR -> Recheck
+  }
+
+  state Disable {
+    SetDamageHeroAmount(target=Self, damageDealt=0)
+  }
+
+  state Recheck {
+    on FINISHED -> Check
+  }
+
+  state Pause {
     NextFrameEvent(sendEvent=->"FINISHED")
     on FINISHED -> Check
   }
