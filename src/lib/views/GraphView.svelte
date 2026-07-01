@@ -56,9 +56,10 @@
 
 	const CHAR = 6.6; // port-mode event/label text metric
 	const CHAR_WIDE = 7.3; // routed-mode node width metric
-	const HEADER = 24; // state-name header height
+	const HEADER = 24; // state-name header height (top space above the first port row)
 	const ROW = 16; // per-transition row height
-	const PAD = 12;
+	const PAD = 16; // horizontal padding (each side)
+	const NAME_H = 34; // height of a name-only box (no labelled ports) — gives the label breathing room
 	const txt = (s: string) => s.length * CHAR;
 	const ROW_H = 20; // chain state row height
 	const PAD_Y = 0; // chain box vertical padding
@@ -68,7 +69,16 @@
 
 	// ty = label y inside the box; (px,py) = the port the edge leaves from; `down` (side mode) means it
 	// drops straight from the bottom centre rather than leaving the side
-	type Row = { event: string; to: string; ty: number; px: number; py: number; down?: boolean };
+	// `bare` = an unlabelled default (FINISHED) exit: no label row, edge leaves from the bottom centre
+	type Row = {
+		event: string;
+		to: string;
+		ty: number;
+		px: number;
+		py: number;
+		down?: boolean;
+		bare?: boolean;
+	};
 	type Node = {
 		id: string;
 		label: string;
@@ -172,6 +182,9 @@
 				.flatMap((s) => s.transitions);
 			return raw.filter((t) => grp !== groupOf.get(t.to_state));
 		};
+		// FINISHED is PlayMaker's implicit "done" event — it gets no labelled port; it just leaves as
+		// an unlabelled default edge from the bottom. so it drives neither box sizing nor the port rows.
+		const portsOf = (id: string) => transOf(id).filter((t) => t.event !== 'FINISHED');
 
 		// width fits the widest state name in the group (a chain renders all of them, not just the head)
 		const sizeOf = (names: string[], trans: { event: string }[], chainLen: number) => ({
@@ -181,7 +194,9 @@
 			height:
 				chainLen > 1
 					? chainLen * ROW_H + PAD_Y * 2 + trans.length * ROW + (trans.length ? 6 : 0)
-					: HEADER + trans.length * ROW + (trans.length ? 6 : 0)
+					: trans.length
+						? HEADER + trans.length * ROW + 6
+						: NAME_H
 		});
 		// node geometry: raw PlayMaker editor rects, normalised so the top-left sits near the origin.
 		// a collapsed chain is placed at its head state's editor position.
@@ -196,7 +211,7 @@
 			// the stacked chain states + any ports
 			if (grp.states.length === 1 && routed) return { x, y, w: p.w, h: p.h };
 			if (port) {
-				const sz = sizeOf(grp.states, transOf(grp.states[0]), grp.states.length);
+				const sz = sizeOf(grp.states, portsOf(grp.states[0]), grp.states.length);
 				return { x, y, w: sz.width, h: sz.height };
 			}
 			const w = Math.max(54, ...grp.states.map((s) => s.length * CHAR_WIDE + 22));
@@ -213,8 +228,10 @@
 			let rows: Row[] = [];
 			if (port) {
 				const trans = transOf(label);
-				const single = trans.length === 1;
-				rows = trans.map((t, idx) => ({
+				const ports = trans.filter((t) => t.event !== 'FINISHED');
+				const finished = trans.filter((t) => t.event === 'FINISHED');
+				const single = ports.length === 1;
+				rows = ports.map((t, idx) => ({
 					event: t.event,
 					to: t.to_state,
 					ty: chain
@@ -222,9 +239,20 @@
 						: top + HEADER + idx * ROW + ROW / 2,
 					px: left + w / 2, // placeholder; the port slot is assigned below
 					py: top + h,
-					// in side mode a lone out-edge drops straight down from the bottom centre
-					down: style === 'side' && single
+					// in side mode a lone labelled out-edge drops straight down from the bottom centre
+					down: style === 'side' && single && finished.length === 0
 				}));
+				// FINISHED transitions render as unlabelled edges leaving the bottom centre (no port row)
+				for (const t of finished)
+					rows.push({
+						event: t.event,
+						to: t.to_state,
+						ty: top + h,
+						px: left + w / 2,
+						py: top + h,
+						down: true,
+						bare: true
+					});
 			}
 			return {
 				id: label,
@@ -808,9 +836,11 @@
 									if (!n.any && !moved) select(n.id);
 								}}
 							/>
+							<!-- centre the name when there are no labelled ports (routed, or a name-only box) -->
+							{@const centered = layoutCfg.edgeStyle === 'routed' || !n.rows.some((r) => !r.bare)}
 							<text
 								x={n.x + n.w / 2}
-								y={layoutCfg.edgeStyle === 'routed' ? n.y + n.h / 2 + 4 : n.y + 16}
+								y={centered ? n.y + n.h / 2 + 4 : n.y + 16}
 								text-anchor="middle"
 								class="nlabel"
 								class:sel={selected === n.id}
@@ -822,18 +852,21 @@
 							     when that state (not the chain head) is selected -->
 							{@const owner = n.chain ? n.chain[n.chain.length - 1].name : n.id}
 							{@const lit = selected === owner || selected === r.to}
-							{#if layoutCfg.edgeStyle === 'bottom' && n.rows.length > 1}
-								<!-- faint wire linking the event row to its (target-ordered) bottom port;
-								     a lone transition needs none — its port sits centred under the row -->
-								<path
-									class="wire"
-									class:hot={lit}
-									d="M {n.x + 6} {r.ty} C {n.x + 6} {(r.ty + r.py) / 2}, {r.px} {(r.ty + r.py) /
-										2}, {r.px} {r.py}"
-								/>
+							<!-- `bare` rows (FINISHED) have no labelled port; only the edge is drawn -->
+							{#if !r.bare}
+								{#if layoutCfg.edgeStyle === 'bottom' && n.rows.length > 1}
+									<!-- faint wire linking the event row to its (target-ordered) bottom port;
+									     a lone transition needs none — its port sits centred under the row -->
+									<path
+										class="wire"
+										class:hot={lit}
+										d="M {n.x + 6} {r.ty} C {n.x + 6} {(r.ty + r.py) / 2}, {r.px} {(r.ty + r.py) /
+											2}, {r.px} {r.py}"
+									/>
+								{/if}
+								<text x={n.x + 10} y={r.ty + 3} class="erow" class:hot={lit}>{r.event}</text>
+								<circle cx={r.px} cy={r.py} r="2" class="port" class:hot={lit} />
 							{/if}
-							<text x={n.x + 10} y={r.ty + 3} class="erow" class:hot={lit}>{r.event}</text>
-							<circle cx={r.px} cy={r.py} r="2" class="port" class:hot={lit} />
 						{/each}
 					</g>
 				{/each}
